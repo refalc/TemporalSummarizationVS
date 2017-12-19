@@ -2,6 +2,7 @@
 #include <iostream>
 #include <regex>
 #include <array>
+#include "TemporalSummarization\utils.h"
 
 TSHttpManager::WSAStateHolder::WSAStateHolder() : m_bInited(false)
 {
@@ -10,11 +11,15 @@ TSHttpManager::WSAStateHolder::WSAStateHolder() : m_bInited(false)
 
 TSHttpManager::WSAStateHolder::~WSAStateHolder()
 {
-    if( !m_sLastMessage.empty() )
-        std::cout << m_sLastMessage << WSAGetLastError() << std::endl;
+	Release();
+}
 
-    if( m_bInited )
-        WSACleanup();
+TSHttpManager::CSimpleSocket::CSimpleSocket() :
+	m_pWSAStateHolder(nullptr),
+	m_bConnected(false),
+	m_bIsCreated(false)
+{
+
 }
 
 TSHttpManager::CSimpleSocket::CSimpleSocket(WSAStateHolder *wsa_state_holder) :
@@ -30,8 +35,16 @@ TSHttpManager::CSimpleSocket::~CSimpleSocket()
         closesocket(m_iSocketID);
 }
 
+void TSHttpManager::CSimpleSocket::InitWSA(WSAStateHolder *wsa_state_holder)
+{
+	m_pWSAStateHolder = wsa_state_holder;
+}
+
 bool TSHttpManager::CSimpleSocket::CreateSocket(int af, int type, int protocol)
 {
+	if( !m_pWSAStateHolder || m_bIsCreated )
+		return false;
+
     if( (m_iSocketID = (int)socket(af, type, protocol)) < 0 ) {
         m_pWSAStateHolder->SetLastMessage("socket() failed : ");
         return false;
@@ -43,7 +56,8 @@ bool TSHttpManager::CSimpleSocket::CreateSocket(int af, int type, int protocol)
 
 bool TSHttpManager::CSimpleSocket::Connect(sockaddr_in *server_addr)
 {
-    if( !m_bIsCreated )
+	m_pLastServerAddr = server_addr;
+    if( !m_bIsCreated || !m_pWSAStateHolder || m_bConnected )
         return false;
 
     if( connect(m_iSocketID, (sockaddr *)server_addr, sizeof(*server_addr)) < 0 ) {
@@ -56,8 +70,27 @@ bool TSHttpManager::CSimpleSocket::Connect(sockaddr_in *server_addr)
     return true;
 }
 
+bool TSHttpManager::CSimpleSocket::CloseSocket()
+{
+	if( !m_bIsCreated )
+		return false;
+
+	if( closesocket(m_iSocketID) != 0 ) {
+		m_pWSAStateHolder->SetLastMessage("closesocket failed : ");
+		return false;
+	}
+
+	m_bIsCreated = false;
+	m_bConnected = false;
+
+	return true;
+
+}
 bool TSHttpManager::CSimpleSocket::Send(const std::string &request) const
 {
+	if( !m_pWSAStateHolder )
+		return false;
+
     if( send((SOCKET)m_iSocketID, request.c_str(), request.length(), 0) != request.length() ) {
         if( !m_bConnected )
             m_pWSAStateHolder->SetLastMessage("Socket does not connected : ");
@@ -70,9 +103,9 @@ bool TSHttpManager::CSimpleSocket::Send(const std::string &request) const
     return true;
 }
 
-bool TSHttpManager::CSimpleSocket::Recv(std::string &reply, int max_wait_loop, int sleep_duration) const
+bool TSHttpManager::CSimpleSocket::Recv(std::string &reply, int max_wait_loop, int sleep_duration)
 {
-	constexpr int max_buffer_size = 1024;
+	constexpr int max_buffer_size = 1024 * 8;
     std::array<char, max_buffer_size> buffer;
 	std::regex re_content_len("Content-Length: (.*?)[\r\n]");
 	int recv_size = 0, count = -1, content_size = -1;
@@ -96,9 +129,14 @@ bool TSHttpManager::CSimpleSocket::Recv(std::string &reply, int max_wait_loop, i
 
 			get_reply.append(buffer.begin(), buffer.begin() + recv_size);
 		}
+
+		if( recv_size == -1 ) {
+			m_pWSAStateHolder->SetLastMessage("Error when recv : ");
+			return false;
+		}
 	}
 
-	if (!find_header)
+	if( !find_header )
 		return false;
 
 	if( get_reply.size() < content_size )
@@ -122,9 +160,22 @@ bool TSHttpManager::WSAStateHolder::Init()
     return true;
 }
 
+void TSHttpManager::WSAStateHolder::Release()
+{
+	if( !m_sLastMessage.empty() ) {
+		std::cout << m_sLastMessage << std::endl;
+		m_sLastMessage.clear();
+	}
+
+	if( m_bInited )
+		WSACleanup();
+
+	m_bInited = false;
+}
+
 void TSHttpManager::WSAStateHolder::SetLastMessage(const std::string &msg)
 {
-    m_sLastMessage = msg;
+    m_sLastMessage = msg + std::to_string(WSAGetLastError());
 }
 
 TSHttpManager::TSHttpManager() 
@@ -132,17 +183,32 @@ TSHttpManager::TSHttpManager()
 
 }
 
-bool TSHttpManager::SetServer(const std::string &ip, int port, const std::string &host_name)
+bool TSHttpManager::Init(const std::string &ip, int port)
 {
     memset(&m_ServerAddr, 0, sizeof(m_ServerAddr));
     m_ServerAddr.sin_family      = AF_INET;
     m_ServerAddr.sin_addr.s_addr = inet_addr(ip.c_str());
     m_ServerAddr.sin_port        = htons((unsigned short) port);
 
-    m_sHostName = host_name;
+    m_sHostName = ip;
+
+	if( !m_WSAStateHolder.Init() )
+		return false;
+
+	m_Socket.InitWSA(&m_WSAStateHolder);
 
     return true;
 }
+
+bool TSHttpManager::Close()
+{
+	if( !m_Socket.CloseSocket() )
+		return false;
+
+	m_WSAStateHolder.Release();
+	return true;
+}
+
 std::string TSHttpManager::CreateGetRequest(const std::string &request) const
 {
 	return "GET /" + request + " HTTP/1.0\r\n" + "Host: " + m_sHostName + "\r\n\r\n";
@@ -150,22 +216,19 @@ std::string TSHttpManager::CreateGetRequest(const std::string &request) const
 
 bool TSHttpManager::Get(const std::string &request, std::string &reply)
 {
-    WSAStateHolder wsa_state;
-    if( !wsa_state.Init() )
-       return false;
-
-	CSimpleSocket socket(&wsa_state);
-
-	if( !socket.CreateSocket(PF_INET, SOCK_STREAM, IPPROTO_TCP) )
+	if( !m_Socket.CreateSocket(PF_INET, SOCK_STREAM, IPPROTO_TCP) )
 		return false;
 
-	if( !socket.Connect(&m_ServerAddr) )
+	if( !m_Socket.Connect(&m_ServerAddr) )
 		return false;
 
-	if( !socket.Send(CreateGetRequest(request)) )
+	if( !m_Socket.Send(CreateGetRequest(request)) )
 		return false;
 
-	if( !socket.Recv(reply) )
+	if( !m_Socket.Recv(reply) )
+		return false;
+
+	if( !m_Socket.CloseSocket() )
 		return false;
 
 	return true;
