@@ -60,3 +60,4 @@ Temporary Items
 *.opendb
 *.diagsession
 *.vspx
+/TemporalSummarization/some_file.txt

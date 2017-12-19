@@ -91,7 +91,7 @@ bool TSHttpManager::CSimpleSocket::Send(const std::string &request) const
 	if( !m_pWSAStateHolder )
 		return false;
 
-    if( send((SOCKET)m_iSocketID, request.c_str(), request.length(), 0) != request.length() ) {
+    if( send((SOCKET)m_iSocketID, request.c_str(), (int)request.length(), 0) != request.length() ) {
         if( !m_bConnected )
             m_pWSAStateHolder->SetLastMessage("Socket does not connected : ");
         else

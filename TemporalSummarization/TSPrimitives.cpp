@@ -69,3 +69,29 @@ bool TSDocument::AddIndexItem(TSIndexItem &&index_item, const std::vector<int> &
 
 	return index_iter->AddToIndex(index_item);
 }
+
+bool TSMetaData::AddData(SMetaDataType type, std::string &&data)
+{
+	if( type == SMetaDataType::DATE ) {
+		int idate = ConstructIntDate(data);
+		if( idate >= 0 )
+			m_Data[SMetaDataType::INT_DATE] = std::to_string(idate);
+		else
+			CLogger::Instance()->WriteToLog("Incorrect date format : " + data);
+	}
+
+	m_Data[type] = std::move(data);
+
+	return true;
+}
+
+int TSMetaData::ConstructIntDate(const std::string &data)
+{
+	std::string day = data.substr(0, 2);
+	std::string month = data.substr(3, 2);
+	std::string year = data.substr(6, 4);
+	if( !utils::IsStringNumber(day) || !utils::IsStringNumber(month) || !utils::IsStringNumber(year) )
+		return -1;
+
+	return std::stoi(day) + std::stoi(month) * 31 + std::stoi(year) * 365;
+}

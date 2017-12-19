@@ -35,13 +35,13 @@ enum class SMetaDataType
 
 // predefs
 class TSDocument;
-class TSSentence;
+class TSIndex;
 //
 
 // typedefs
 using ReplyDataType = std::pair<ReplyType, std::string>;
 using ProcessedDataType = std::variant<TSDocument, std::vector<std::string>>;
-using RequestDataType = std::variant<std::string, std::vector<TSSentence>>;
+using RequestDataType = std::variant<std::string, std::vector<TSIndex>>;
 //
 
 /*class TSWord
@@ -133,6 +133,10 @@ private:
 class TSMetaData
 {
 public:
+	bool AddData(SMetaDataType type, std::string &&data);
+
+private:
+	int ConstructIntDate(const std::string &data);
 
 private:
 	std::map<SMetaDataType, std::string> m_Data;
@@ -147,6 +151,7 @@ public:
 	bool InitDocID(const std::string &doc_id);
 	bool AddSentence(int sentence_num, int start_pos, int end_pos);
 	bool AddIndexItem(TSIndexItem &&index_item, const std::vector<int> &sentences, SDataType type);
+	inline bool AddMetaData(SMetaDataType type, std::string &&data) { return m_MetaData.AddData(type, std::move(data)); }
 
 private:
 	std::string m_DocID;

@@ -163,6 +163,15 @@ bool hash2string(const StringHash &hash, std::string &str)
 }
 
 }
+
+bool IsStringNumber(const std::string &str) 
+{
+	for( const auto &c : str )
+		if( c <= 0 || !isdigit(c) )
+			return false;
+	return true;
+}
+
 }
 //
 
@@ -261,7 +270,7 @@ bool CArgReader::GetStrDataFromTag(const std::string &content, const std::string
 	if (beg_tag_pos == std::string::npos || end_tag_pos == std::string::npos)
 		return false;
 
-	int data_begin_pos = beg_tag_pos + open_tag.size(),
+	int data_begin_pos = beg_tag_pos + (int)open_tag.size(),
 		data_len = end_tag_pos - data_begin_pos;
 
 	data = content.substr(data_begin_pos, data_len);

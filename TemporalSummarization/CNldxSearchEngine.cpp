@@ -6,7 +6,7 @@
 CNldxSearchEngine::CNldxSearchEngine()
 {
 	m_sDocRequestPart = "doc_text?show_all_feats=1&doc_id=";
-	std::string ip = "127.0.0.1", host = "localhost";
+	std::string ip = "127.0.0.1";
 	int port = 2062;
 
 	m_spHttpManager.reset(new TSHttpManager());
@@ -43,7 +43,7 @@ bool CNldxSearchEngine::SendRequest(const RequestDataType &request, ReplyDataTyp
 	if( std::holds_alternative<std::string>(request) ) {
 		http_request = m_sDocRequestPart + std::get<std::string>(request);
 		reply.first = ReplyType::DOC;
-	} else if( std::holds_alternative<std::vector<TSSentence>>(request) ) {
+	} else if( std::holds_alternative<std::vector<TSIndex>>(request) ) {
 		http_request = "";/*m_sDocListRequestPart + ConstructDocListRequestString(query);*/
 		reply.first = ReplyType::DOC_LIST;
 	} else {
@@ -96,7 +96,7 @@ bool CNldxSearchEngine::CNldxReplyProcessor::ConstructDocFromString(TSDocument &
 	if( !ExtractMetaData(document, doc_text) )
 		return false;
 
-	if( !ExtractIndexData_find(document, doc_text) )
+	if( !ExtractIndexData(document, doc_text) )
 		return false;
 
 	return true;
@@ -126,7 +126,7 @@ std::vector<std::array<int, 3>> CNldxSearchEngine::CNldxReplyProcessor::ProcessP
 	std::vector<std::array<int, 3>> results;
 	results.reserve(count);
 
-	int begin_pos = 0, end_pos = str.size();
+	int begin_pos = 0, end_pos = (int)str.size();
 	while( count-- > 0 ) {
 		std::pair<int, int> circ_find_res;
 		if( !FindTag(str, "(", ")", begin_pos, end_pos, circ_find_res) )
@@ -148,15 +148,16 @@ std::vector<std::array<int, 3>> CNldxSearchEngine::CNldxReplyProcessor::ProcessP
 	return results;
 }
 
-bool CNldxSearchEngine::CNldxReplyProcessor::ExtractIndexData_find(TSDocument &document, const std::string &doc_text) const
+bool CNldxSearchEngine::CNldxReplyProcessor::ExtractIndexData(TSDocument &document, const std::string &doc_text) const
 {
 	constexpr int td_in_tr_size = 6;
 	std::pair<int, int> tr_res(0, 0);
 	std::array<std::pair<int, int>, td_in_tr_size> tds_res;
-	while( FindTag(doc_text, "<tr>", "</tr>", tr_res.first, doc_text.size(), tr_res) ) {
+	while( FindTag(doc_text, "<tr>", "</tr>", tr_res.first, (int)doc_text.size(), tr_res) ) {
 		bool correct_tr = true;
 		for( int i = 0; i < td_in_tr_size; i++ ) {
-			if( !FindTag(doc_text, "<td>", "</td>", (i > 0 ? tds_res[i - 1].second : tr_res.first), tr_res.second, tds_res[i]) ) {
+			int left_boundary = (i > 0 ? tds_res[i - 1].second : tr_res.first);
+			if( !FindTag(doc_text, "<td>", "</td>", left_boundary, tr_res.second, tds_res[i]) ) {
 				correct_tr = false;
 				break;
 			}
@@ -169,7 +170,7 @@ bool CNldxSearchEngine::CNldxReplyProcessor::ExtractIndexData_find(TSDocument &d
 			std::string scount = doc_text.substr(tds_res[4].first, tds_res[4].second - tds_res[4].first);
 			std::string spos_data = doc_text.substr(tds_res[5].first, tds_res[5].second - tds_res[5].first);
 
-			int word_s_pos = sizeof("<b>") - 1, word_symb_count = sword.size() - sizeof("<b>") - sizeof("</b>") + 2;
+			int word_s_pos = (int)sizeof("<b>") - 1, word_symb_count = (int)sword.size() - (int)sizeof("<b>") - (int)sizeof("</b>") + 2;
 			sword = sword.substr(word_s_pos, word_symb_count);
 
 			if( !ProcessTrData(document, stype, sword, sweight, scount, spos_data) )
@@ -182,13 +183,13 @@ bool CNldxSearchEngine::CNldxReplyProcessor::ExtractIndexData_find(TSDocument &d
 bool CNldxSearchEngine::CNldxReplyProcessor::FindTag(const std::string &text, const std::string &open_tag, const std::string &close_tag, int left_boundary, int right_boundary, std::pair<int, int> &result) const
 {
 	int open_tag_pos = -1, close_tag_pos = -1;
-	if( (open_tag_pos = text.find(open_tag, left_boundary)) == std::string::npos || open_tag_pos > right_boundary )
+	if( (open_tag_pos = (int)text.find(open_tag, left_boundary)) == std::string::npos || open_tag_pos > right_boundary )
 		return false;
 
-	if( (close_tag_pos = text.find(close_tag, open_tag_pos)) == std::string::npos || close_tag_pos > right_boundary )
+	if( (close_tag_pos = (int)text.find(close_tag, open_tag_pos)) == std::string::npos || close_tag_pos > right_boundary )
 		return false;
 
-	result.first = open_tag_pos + open_tag.size();
+	result.first = open_tag_pos + (int)open_tag.size();
 	result.second = close_tag_pos;
 
 	std::string temp = text.substr(result.first, result.second - result.first);
@@ -197,26 +198,19 @@ bool CNldxSearchEngine::CNldxReplyProcessor::FindTag(const std::string &text, co
 
 bool CNldxSearchEngine::CNldxReplyProcessor::ProcessTrData(TSDocument &document, const std::string &stype, const std::string &sword, const std::string &sweight, const std::string &scount, const std::string &spos_data) const
 {
-	auto is_number = [] (const std::string &str) {
-		for( const auto &c : str )
-			if( c <= 0 || !isdigit(c) )
-				return false;
-		return true;
-	};
-
 	SDataType type = String2Type(stype);
 	if( type == SDataType::FINAL_TYPE )
 		return true;
 
 	auto all_pos_data = ProcessPosData_find(spos_data, std::stoi(scount));
 	switch( type ) {
-	case(SDataType::SENT): {
-		if( is_number(sword) )
+	case SDataType::SENT : {
+		if( utils::IsStringNumber(sword) )
 			document.AddSentence(std::stoi(sword) - 1, all_pos_data.front()[0] - 1, all_pos_data.front()[0] + all_pos_data.front()[1]);
 	} break;
-	case(SDataType::LEMMA):
-	case(SDataType::TERMIN):
-	case(SDataType::WORD): {
+	case SDataType::LEMMA :
+	case SDataType::TERMIN :
+	case SDataType::WORD : {
 		std::vector<int> positions, sentences;
 		positions.reserve(all_pos_data.size());
 		int curr_sent = -1;
@@ -236,8 +230,35 @@ bool CNldxSearchEngine::CNldxReplyProcessor::ProcessTrData(TSDocument &document,
 	default:
 		return true;
 	};
+
+	return false;
 }
-bool CNldxSearchEngine::CNldxReplyProcessor::ExtractMetaData(TSDocument &document, std::string &doc_text) const
+
+bool CNldxSearchEngine::CNldxReplyProcessor::ExtractMetaData(TSDocument &document, const std::string &doc_text) const
 {
+	auto ExtractMeta = [this] (const std::string &doc_text, const std::string &meta_tag, std::pair<int, int> &result) {
+		std::pair<int, int> res;
+		if( !FindTag(doc_text, meta_tag, "<BR>", 0, (int)doc_text.size(), res) )
+			return false;
+
+		if( !FindTag(doc_text, "= ", "<BR>", res.first, res.second + (int)sizeof("<BR>"), res) )
+			return false;
+
+		result = std::move(res);
+		return true;
+	};
+
+	auto ExtractAndAddMeta = [this, &ExtractMeta] (TSDocument &document, const std::string &meta_tag, SMetaDataType type, const std::string &doc_text) {
+		std::pair<int, int> result_pair{ -1, -1 };
+		if( ExtractMeta(doc_text, meta_tag, result_pair) ) {
+			std::string mdata = doc_text.substr(result_pair.first, result_pair.second - result_pair.first);
+			document.AddMetaData(type, std::move(mdata));
+		}
+	};
+	ExtractAndAddMeta(document, "KRMN_DATE", SMetaDataType::DATE, doc_text);
+	ExtractAndAddMeta(document, "KRMN_LENGTH", SMetaDataType::TITLE, doc_text);
+	ExtractAndAddMeta(document, "KRMN_SITE", SMetaDataType::SITE, doc_text);
+	ExtractAndAddMeta(document, "KRMN_TITLE", SMetaDataType::TITLE, doc_text);
+
 	return true;
 }
