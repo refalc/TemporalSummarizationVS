@@ -42,49 +42,53 @@ class TSIndex;
 using ReplyDataType = std::pair<ReplyType, std::string>;
 using ProcessedDataType = std::variant<TSDocument, std::vector<std::string>>;
 using RequestDataType = std::variant<std::string, std::vector<TSIndex>>;
+using IndexItemIDType = std::string;
 //
 
-/*class TSWord
+class TSIndexItemID
 {
 public:
-	TSWord(std::string &&id, int pos, float w) : m_ID(std::move(id)), m_iPos(pos), m_fWeight(w), m_bIsW2V(false) {}
+	TSIndexItemID() : m_ID("") {}
+	TSIndexItemID(std::string &&id) : m_ID(std::move(id)) {}
+	TSIndexItemID(const std::string &id) : m_ID(id) {}
+	TSIndexItemID(const TSIndexItemID &other) { m_ID = other.m_ID; }
+	TSIndexItemID(TSIndexItemID &&other) { m_ID = std::move(other.m_ID); }
 
-	inline std::string &GetID() { return m_ID; }
-	inline const std::string &GetID() const { return m_ID; }
-	inline int &GetPos() { return m_iPos; }
-	inline int GetPos() const { return m_iPos; }
-	inline float &GetWeight() { return m_fWeight; }
-	inline float GetWeight() const { return m_fWeight; }
+	inline const TSIndexItemID &operator=(const TSIndexItemID &other) { m_ID = other.m_ID; return *this; }
+	inline const TSIndexItemID &operator=(TSIndexItemID &&other) { m_ID = std::move(other.m_ID); return *this; }
 
-	inline bool operator==(const TSWord &rhs) const { return !m_ID.compare(rhs.m_ID);  }
+	bool operator==(const TSIndexItemID &other) const;
+	bool operator<(const TSIndexItemID &other) const;
+
 private:
 	std::string m_ID;
-	int m_iPos;
-	float m_fWeight;
-
-	bool m_bIsW2V;
-	//std::array<float, W2VSize> m_W2V;
-};*/
+};
 
 class TSIndexItem
 {
 public:
-	TSIndexItem(const std::string &id, float w, std::vector<int> &&positions) :
+	TSIndexItem(const IndexItemIDType &id, float w, std::vector<int> &&positions) :
 		m_ID(id),
 		m_fWeight(w),
 		m_Positions(std::move(positions)) {}
 
-	inline std::string &GetID() { return m_ID; }
-	inline const std::string &GetID() const { return m_ID; }
+	TSIndexItem(const TSIndexItem &other);
+	TSIndexItem(TSIndexItem &&other);
+
+	const TSIndexItem &operator=(const TSIndexItem &other);
+	const TSIndexItem &operator=(TSIndexItem &&other);
+
+	inline IndexItemIDType &GetID() { return m_ID; }
+	inline const IndexItemIDType &GetID() const { return m_ID; }
 	inline float &GetWeight() { return m_fWeight; }
 	inline float GetWeight() const { return m_fWeight; }
 	inline std::vector<int> &GetPositions() { return m_Positions; }
 	inline const std::vector<int> &GetPositions() const { return m_Positions; }
 
-	inline bool operator==(const TSIndexItem &rhs) const { return !m_ID.compare(rhs.m_ID); }
+	inline bool operator==(const TSIndexItem &rhs) const { return m_ID == rhs.m_ID; }
 
 private:
-	std::string m_ID;
+	IndexItemIDType m_ID;
 	float m_fWeight;
 	std::vector<int> m_Positions;
 };
@@ -93,6 +97,11 @@ class TSIndex
 {
 public:
 	TSIndex(SDataType type) : m_eIndexType(type) {}
+	TSIndex(const TSIndex &other);
+	TSIndex(TSIndex &&other);
+
+	const TSIndex &operator=(const TSIndex &other);
+	const TSIndex &operator=(TSIndex &&other);
 
 	template<typename T>
 	bool AddToIndex(T &&item) {
@@ -101,6 +110,13 @@ public:
 	}
 
 	inline SDataType GetType() const { return m_eIndexType; }
+
+	// index iteration
+	inline std::vector<TSIndexItem>::iterator begin() { return m_Index.begin(); }
+	inline std::vector<TSIndexItem>::iterator end() { return m_Index.end(); }
+	inline std::vector<TSIndexItem>::const_iterator begin() const { return m_Index.begin(); }
+	inline std::vector<TSIndexItem>::const_iterator end() const { return m_Index.end(); }
+
 
 private:
 	SDataType m_eIndexType;
@@ -115,6 +131,12 @@ public:
 		m_iSentenceNum(sentence_num),
 		m_iStartPos(start_pos),
 		m_iEndPos(end_pos) {}
+
+	TSSentence(const TSSentence &other);
+	TSSentence(TSSentence &&other);
+
+	const TSSentence &operator=(const TSSentence &other);
+	const TSSentence &operator=(TSSentence &&other);
 
 	inline void AddBoundaries(int start_pos, int end_pos) { m_iStartPos = start_pos; m_iEndPos = end_pos; }
 	inline bool IsCorrectBoundaries() const { return m_iStartPos >= 0 && m_iEndPos > m_iStartPos; }
@@ -133,6 +155,14 @@ private:
 class TSMetaData
 {
 public:
+	TSMetaData() {}
+	TSMetaData(const TSMetaData &other);
+	TSMetaData(TSMetaData &&other);
+
+	const TSMetaData &operator=(const TSMetaData &other);
+	const TSMetaData &operator=(TSMetaData &&other);
+
+
 	bool AddData(SMetaDataType type, std::string &&data);
 
 private:
@@ -147,11 +177,18 @@ class TSDocument
 public:
 	TSDocument() {}
 	TSDocument(const std::string &id) : m_DocID(id) {}
+	TSDocument(const TSDocument &other);
+	TSDocument(TSDocument &&other);
+
+	const TSDocument &operator=(const TSDocument &other);
+	const TSDocument &operator=(TSDocument &&other);
 
 	bool InitDocID(const std::string &doc_id);
 	bool AddSentence(int sentence_num, int start_pos, int end_pos);
 	bool AddIndexItem(TSIndexItem &&index_item, const std::vector<int> &sentences, SDataType type);
 	inline bool AddMetaData(SMetaDataType type, std::string &&data) { return m_MetaData.AddData(type, std::move(data)); }
+
+	inline const std::string &GetDocID() const { return m_DocID; };
 
 private:
 	std::string m_DocID;
@@ -163,9 +200,10 @@ private:
 class TSDocCollection
 {
 public:
+	bool AddDocToCollection(TSDocument &&doc);
 
 private:
-	std::vector<TSDocument> m_Docs;
+	std::map<std::string, TSDocument> m_Docs;
 };
 
 class IReplyProcessor

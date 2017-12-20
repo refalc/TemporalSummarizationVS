@@ -30,33 +30,70 @@ bool TSDataExtractor::InitParameters(const std::initializer_list<float> &params)
 
 bool TSDataExtractor::GetDocument(TSDocument &document, const std::string &doc_id) const
 {
-	if( !m_spSearchEngine || !m_pReplyProcessor )
+	if( !m_spSearchEngine || !m_pReplyProcessor ) {
+		CLogger::Instance()->WriteToLog("ERROR: Search engine or reply processor does not inited");
 		return false;
+	}
 
 	RequestDataType request = doc_id;
 	ReplyDataType reply;
-	if( !m_spSearchEngine->SendRequest(request, reply) )
+	if( !m_spSearchEngine->SendRequest(request, reply) ) {
+		CLogger::Instance()->WriteToLog("ERROR: Fail while sending request to search engine");
 		return false;
+	}
 
 	ProcessedDataType data;
-	if( !m_pReplyProcessor->ProcessReply(reply, data) )
+	if( !m_pReplyProcessor->ProcessReply(reply, data) ) {
+		CLogger::Instance()->WriteToLog("ERROR: Fail while process reply from search engine");
 		return false;
+	}
+	std::get<TSDocument>(data).InitDocID(doc_id);
 
-	document.InitDocID(doc_id);
+	document = std::move(std::get<TSDocument>(data));
+
 	return true;
 }
 
-/*std::string TSDataExtractor::ConstructDocListRequestString(const TSWordSequence &query) const
+bool TSDataExtractor::GetDocumentList(const std::vector<TSIndex> &query, std::vector<std::string> &doc_list) const
 {
-	return "";
-}*/
-
-/*bool TSDataExtractor::GetDocuments(TSDocCollection &collection, const TSWordSequence &query) const
-{
-	std::string request = m_sDocListRequestPart + ConstructDocListRequestString(query), reply;
-	
-	if( !m_spHttpManager->Get(request, reply) )
+	RequestDataType request = query;
+	ReplyDataType reply;
+	if( !m_spSearchEngine->SendRequest(request, reply) ) {
+		CLogger::Instance()->WriteToLog("ERROR: Fail while sending request to search engine");
 		return false;
+	}
+
+	ProcessedDataType data;
+	if( !m_pReplyProcessor->ProcessReply(reply, data) ) {
+		CLogger::Instance()->WriteToLog("ERROR: Fail while process reply from search engine");
+		return false;
+	}
+
+	doc_list = std::move(std::get<std::vector<std::string> >(data));
+	return true;
+}
+
+bool TSDataExtractor::GetDocuments(TSDocCollection &collection, const std::vector<TSIndex> &query) const
+{
+	if( !m_spSearchEngine || !m_pReplyProcessor ) {
+		CLogger::Instance()->WriteToLog("ERROR: Search engine or reply processor does not inited");
+		return false;
+	}
+
+	std::vector<std::string> doc_list;
+	if( !GetDocumentList(query, doc_list) ) {
+		CLogger::Instance()->WriteToLog("ERROR: Fail while getting document list on query");
+		return false;
+	}
+
+	CLogger::Instance()->WriteToLog("Process " + std::to_string(doc_list.size()) + " docs");
+	for( const auto &doc_id : doc_list ) {
+		TSDocument doc(doc_id);
+		if( !GetDocument(doc, doc.GetDocID()) )
+			return false;
+
+		collection.AddDocToCollection(std::move(doc));
+	}
 
 	return true;
-}*/
+}

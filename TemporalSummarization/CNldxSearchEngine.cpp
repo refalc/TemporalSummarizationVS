@@ -21,16 +21,20 @@ CNldxSearchEngine::~CNldxSearchEngine()
 
 bool CNldxSearchEngine::InitParameters(const std::initializer_list<float> &params)
 {
-	if( params.size() != 2 )
+	constexpr int parameters_size = 2;
+	if( params.size() < parameters_size )
 		return false;
 
 	int doc_count = (int)params.begin()[0];
 	float soft_or = params.begin()[1];
-	
+
+	if( doc_count > 1000 || doc_count < 0 )
+		return false;
+
 	if( soft_or >= 1.f || soft_or < 0.f )
 		return false;
 
-	if( doc_count > 1000 || doc_count < 0 )
+	if( !m_ReplyProcessor.InitParameters(std::initializer_list<float>(params.begin() + 2, params.end())) )
 		return false;
 
 	m_sDocListRequestPart = "?doccnt=" + std::to_string(doc_count) + "&soft_or_coef=" + std::to_string(soft_or) + "&reqtext=";
@@ -44,7 +48,7 @@ bool CNldxSearchEngine::SendRequest(const RequestDataType &request, ReplyDataTyp
 		http_request = m_sDocRequestPart + std::get<std::string>(request);
 		reply.first = ReplyType::DOC;
 	} else if( std::holds_alternative<std::vector<TSIndex>>(request) ) {
-		http_request = "";/*m_sDocListRequestPart + ConstructDocListRequestString(query);*/
+		http_request = m_sDocListRequestPart + ConstructDocListRequestString(std::get<std::vector<TSIndex>>(request));
 		reply.first = ReplyType::DOC_LIST;
 	} else {
 		reply.first = ReplyType::ERR;
@@ -59,6 +63,58 @@ bool CNldxSearchEngine::SendRequest(const RequestDataType &request, ReplyDataTyp
 	return true;
 }
 
+std::string CNldxSearchEngine::ConstructDocListRequestString(const std::vector<TSIndex> &query) const
+{
+	auto IndexToQueryString = [] (const TSIndex &query_index, const std::string &prefix = "", const std::string &suffix = ""){
+		std::string result;
+		for( auto iter = query_index.begin(); iter != query_index.end(); iter++ ) 
+			result += (iter == query_index.begin() ? "" : "+") + prefix + iter->GetID() + suffix;
+
+		return result;
+	};
+
+	std::string lemma_request, termin_request, request_string = "";
+	for( const auto &query_index : query ) {
+		if( query_index.GetType() == SDataType::LEMMA )
+			lemma_request = IndexToQueryString(query_index);
+
+		if( query_index.GetType() == SDataType::TERMIN )
+			termin_request = IndexToQueryString(query_index, "%2F“≈–Ã»Õ%3D\"", "\"");
+	}
+
+	if( !lemma_request.empty() ) {
+		request_string = lemma_request;
+		if( !termin_request.empty() )
+			request_string += "+" + termin_request;
+	}
+
+	return request_string;
+}
+
+CNldxSearchEngine::CNldxReplyProcessor::CNldxReplyProcessor()
+{
+	InitStopWords();
+}
+
+bool CNldxSearchEngine::CNldxReplyProcessor::InitParameters(const std::initializer_list<float> &params)
+{
+	constexpr int parameters_size = 1;
+	if( params.size() < parameters_size )
+		return false;
+
+	float min_doc_rank = params.begin()[0];
+	if( min_doc_rank >= 1.f || min_doc_rank < 0.f )
+		return false;
+
+	m_fMinDocRank = min_doc_rank;
+	return true;
+}
+
+void CNldxSearchEngine::CNldxReplyProcessor::InitStopWords()
+{
+	m_StopWords.insert("¬");
+}
+
 bool CNldxSearchEngine::CNldxReplyProcessor::ProcessReply(const ReplyDataType &reply, ProcessedDataType &data) const
 {
 	std::string reply_text = reply.second;
@@ -71,14 +127,14 @@ bool CNldxSearchEngine::CNldxReplyProcessor::ProcessReply(const ReplyDataType &r
 		if( !ConstructDocFromString(doc, std::move(reply_text)) )
 			return false;
 
-		data = doc;
+		data = std::move(doc);
 	} break;
 	case ReplyType::DOC_LIST: {
 		std::vector<std::string> doc_list;
 		if( !ConstructDocListFromString(doc_list, std::move(reply_text)) )
 			return false;
 
-		data = doc_list;
+		data = std::move(doc_list);
 	} break;
 	default :
 		return false;
@@ -103,6 +159,24 @@ bool CNldxSearchEngine::CNldxReplyProcessor::ConstructDocFromString(TSDocument &
 }
 bool CNldxSearchEngine::CNldxReplyProcessor::ConstructDocListFromString(std::vector<std::string> &doc_list, std::string &&doc_text) const
 {
+	std::pair<int, int> doc_res{ 0, 0 }, doc_id_res{ 0, 0 }, doc_rank_res{ 0, 0 };
+	while( FindTag(doc_text, "<doc ", "/>", doc_res.first, (int)doc_text.size(), doc_res) ) {
+		if( !FindTag(doc_text, "id=\"", "\"", doc_res.first, doc_res.second, doc_id_res) )
+			return false;
+		if( !FindTag(doc_text, "rank=\"", "\"", doc_res.first, doc_res.second, doc_rank_res) )
+			return false;
+
+		std::string id = doc_text.substr(doc_id_res.first, doc_id_res.second - doc_id_res.first),
+					rank = doc_text.substr(doc_rank_res.first, doc_rank_res.second - doc_rank_res.first);
+
+		if( !utils::IsStringFloatNumber(rank) || !utils::IsStringIntNumber(id) )
+			return false;
+
+		if( std::stof(rank) < m_fMinDocRank )
+			break;
+
+		doc_list.emplace_back(std::move(id));
+	}
 	return true;
 }
 
@@ -120,7 +194,7 @@ SDataType CNldxSearchEngine::CNldxReplyProcessor::String2Type(const std::string 
 	return SDataType::FINAL_TYPE;
 }
 
-std::vector<std::array<int, 3>> CNldxSearchEngine::CNldxReplyProcessor::ProcessPosData_find(const std::string &str, int count) const
+std::vector<std::array<int, 3>> CNldxSearchEngine::CNldxReplyProcessor::ProcessPosData(const std::string &str, int count) const
 {
 	constexpr int space_semi_space_size = 3;
 	std::vector<std::array<int, 3>> results;
@@ -186,13 +260,13 @@ bool CNldxSearchEngine::CNldxReplyProcessor::FindTag(const std::string &text, co
 	if( (open_tag_pos = (int)text.find(open_tag, left_boundary)) == std::string::npos || open_tag_pos > right_boundary )
 		return false;
 
-	if( (close_tag_pos = (int)text.find(close_tag, open_tag_pos)) == std::string::npos || close_tag_pos > right_boundary )
+	if( (close_tag_pos = (int)text.find(close_tag, open_tag_pos + (int)open_tag.size())) == std::string::npos ||
+		 close_tag_pos > right_boundary )
 		return false;
 
 	result.first = open_tag_pos + (int)open_tag.size();
 	result.second = close_tag_pos;
 
-	std::string temp = text.substr(result.first, result.second - result.first);
 	return true;
 }
 
@@ -202,10 +276,10 @@ bool CNldxSearchEngine::CNldxReplyProcessor::ProcessTrData(TSDocument &document,
 	if( type == SDataType::FINAL_TYPE )
 		return true;
 
-	auto all_pos_data = ProcessPosData_find(spos_data, std::stoi(scount));
+	auto all_pos_data = ProcessPosData(spos_data, std::stoi(scount));
 	switch( type ) {
 	case SDataType::SENT : {
-		if( utils::IsStringNumber(sword) )
+		if( utils::IsStringIntNumber(sword) )
 			document.AddSentence(std::stoi(sword) - 1, all_pos_data.front()[0] - 1, all_pos_data.front()[0] + all_pos_data.front()[1]);
 	} break;
 	case SDataType::LEMMA :
@@ -226,12 +300,11 @@ bool CNldxSearchEngine::CNldxReplyProcessor::ProcessTrData(TSDocument &document,
 		if( !document.AddIndexItem(std::move(index_item), sentences, type) )
 			return false;
 	} break;
-
 	default:
-		return true;
+		return false;
 	};
 
-	return false;
+	return true;
 }
 
 bool CNldxSearchEngine::CNldxReplyProcessor::ExtractMetaData(TSDocument &document, const std::string &doc_text) const

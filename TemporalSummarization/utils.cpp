@@ -164,11 +164,31 @@ bool hash2string(const StringHash &hash, std::string &str)
 
 }
 
-bool IsStringNumber(const std::string &str) 
+bool IsStringFloatNumber(const std::string &str)
 {
-	for( const auto &c : str )
-		if( c <= 0 || !isdigit(c) )
+	bool dot_avialable = true;
+	for( int i = 0; i < str.size(); i++ ) {
+		if( str[i] <= 0 )
 			return false;
+		if( !isdigit(str[i]) ) {
+			if( str[i] == '.' && dot_avialable && i > 0 && i < str.size() - 1 ) {
+				dot_avialable = false;
+				continue;
+			}
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool IsStringIntNumber(const std::string &str) 
+{
+	bool dot_avialable = true;
+	for( int i = 0; i < str.size(); i++ )
+		if( str[i] <= 0  || !isdigit(str[i]) )
+			return false;
+
 	return true;
 }
 

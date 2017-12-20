@@ -23,7 +23,8 @@ namespace utils {
 		bool string2hash(const std::string &str, StringHash &hash);
 		bool hash2string(const StringHash &hash, std::string &str);
 	}
-	bool IsStringNumber(const std::string &str);
+	bool IsStringFloatNumber(const std::string &str);
+	bool IsStringIntNumber(const std::string &str);
 }
 
 
