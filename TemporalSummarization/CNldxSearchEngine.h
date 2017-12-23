@@ -13,7 +13,7 @@ public:
 	virtual IReplyProcessor *GetReplyProcessor() override { return &m_ReplyProcessor; }
 
 private:
-	std::string ConstructDocListRequestString(const std::vector<TSIndex> &query) const;
+	std::string ConstructDocListRequestString(const TSQuery &query) const;
 
 	class CNldxReplyProcessor : public IReplyProcessor {
 	public:

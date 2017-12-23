@@ -60,5 +60,6 @@ private:
     std::string m_sHostName;
 
 	//std::unique_ptr<happyhttp::Connection> m_spConnection;
-
+public:
+	double recv_time;
 };

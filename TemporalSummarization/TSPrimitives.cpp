@@ -2,43 +2,28 @@
 #include <algorithm>
 #include "utils.h"
 
-bool TSIndexItemID::operator==(const TSIndexItemID &other) const
-{
-	if( m_ID.size() != other.m_ID.size() )
-		return false;
-
-	return memcmp(m_ID.data(), other.m_ID.data(), m_ID.size()) == 0;
-}
-
-bool TSIndexItemID::operator<(const TSIndexItemID &other) const
-{
-	return m_ID.compare(other.m_ID) < 0;
-}
-
-TSIndexItem::TSIndexItem(const TSIndexItem &other)
+TSIndexItem::TSIndexItem(const TSIndexItem &other) noexcept
 {
 	*this = other;
 }
 
-TSIndexItem::TSIndexItem(TSIndexItem &&other)
+TSIndexItem::TSIndexItem(TSIndexItem &&other) noexcept
 {
 	*this = std::move(other);
 }
 
-const TSIndexItem &TSIndexItem::operator=(const TSIndexItem &other)
+const TSIndexItem &TSIndexItem::operator=(const TSIndexItem &other) noexcept
 {
 	m_fWeight = other.m_fWeight;
 	m_ID = other.m_ID;
-	m_Positions = other.m_Positions;
 
 	return *this;
 }
 
-const TSIndexItem &TSIndexItem::operator=(TSIndexItem &&other)
+const TSIndexItem &TSIndexItem::operator=(TSIndexItem &&other) noexcept
 {
 	m_fWeight = std::move(other.m_fWeight);
 	m_ID = std::move(other.m_ID);
-	m_Positions = std::move(other.m_Positions);
 
 	return *this;
 }
@@ -48,7 +33,7 @@ TSIndex::TSIndex(const TSIndex &other)
 	*this = other;
 }
 
-TSIndex::TSIndex(TSIndex &&other)
+TSIndex::TSIndex(TSIndex &&other) noexcept
 {
 	*this = std::move(other);
 }
@@ -61,7 +46,7 @@ const TSIndex &TSIndex::operator=(const TSIndex &other)
 	return *this;
 }
 
-const TSIndex &TSIndex::operator=(TSIndex &&other)
+const TSIndex &TSIndex::operator=(TSIndex &&other) noexcept
 {
 	m_eIndexType = std::move(other.m_eIndexType);
 	m_Index = std::move(other.m_Index);
@@ -69,12 +54,67 @@ const TSIndex &TSIndex::operator=(TSIndex &&other)
 	return *this;
 }
 
+std::string TSIndex::GetString() const
+{
+	std::string str;
+	for( auto iter = m_Index.begin(); iter != m_Index.end(); iter++ )
+		str += (iter == m_Index.begin() ? "" : " " ) + iter->GetID();
+	return str;
+}
+
+bool TSIndexiesHolder::GetIndex(SDataType type, TSIndex &index) const {
+	auto index_iter = std::find_if(m_Indexies.begin(), m_Indexies.end(), [type] (const TSIndex &index) {
+		return index.GetType() == type; 
+	});
+
+	if( index_iter == m_Indexies.end() )
+		return false;
+
+	index = *index_iter;
+	return true;
+}
+
+bool TSIndexiesHolder::GetIndex(SDataType type, TSIndexConstPtr &p_index) const {
+	auto index_iter = std::find_if(m_Indexies.begin(), m_Indexies.end(), [type] (const TSIndex &index) {
+		return index.GetType() == type;
+	});
+
+	if( index_iter == m_Indexies.end() )
+		return false;
+
+	p_index = &(*index_iter);
+	return true;
+}
+
+bool TSIndexiesHolder::GetIndex(SDataType type, TSIndexPtr &p_index)
+{
+	auto index_iter = std::find_if(m_Indexies.begin(), m_Indexies.end(), [type] (const TSIndex &index) {
+		return index.GetType() == type;
+	});
+
+	if( index_iter == m_Indexies.end() )
+		return false;
+
+	p_index = &(*index_iter);
+	return true;
+}
+
+bool TSIndexiesHolder::InitIndex(SDataType type)
+{
+	TSIndexConstPtr index_ptr;
+	if( GetIndex(type, index_ptr) )
+		return false;
+
+	m_Indexies.emplace_back(type);
+	return true;
+}
+
 TSSentence::TSSentence(const TSSentence &other)
 {
 	*this = other;
 }
 
-TSSentence::TSSentence(TSSentence &&other)
+TSSentence::TSSentence(TSSentence &&other) noexcept
 {
 	*this = std::move(other);
 }
@@ -90,7 +130,7 @@ const TSSentence &TSSentence::operator=(const TSSentence &other)
 	return *this;
 }
 
-const TSSentence &TSSentence::operator=(TSSentence &&other)
+const TSSentence &TSSentence::operator=(TSSentence &&other) noexcept
 {
 	m_pDoc = std::move(other.m_pDoc);
 	m_iSentenceNum = std::move(other.m_iSentenceNum);
@@ -101,33 +141,12 @@ const TSSentence &TSSentence::operator=(TSSentence &&other)
 	return *this;
 }
 
-bool TSSentence::AddIndexItem(const TSIndexItem &index_item, SDataType type)
-{
-	TSIndexItem curr_index_item = index_item;
-
-	// correct positions
-	curr_index_item.GetPositions().erase(std::remove_if(curr_index_item.GetPositions().begin(), curr_index_item.GetPositions().end(), [this](const int &elem) {
-		return elem > m_iEndPos || elem < m_iStartPos; 
-	}), curr_index_item.GetPositions().end());
-
-	if( curr_index_item.GetPositions().empty() )
-		return false;
-
-	auto index_iter = std::find_if(m_Indexies.begin(), m_Indexies.end(), [type](const TSIndex &index) { return index.GetType() == type; });
-	if( index_iter == m_Indexies.end() ) {
-		m_Indexies.emplace_back(TSIndex(type));
-		index_iter = m_Indexies.begin() + m_Indexies.size() - 1;
-	}
-	
-	return index_iter->AddToIndex(std::move(curr_index_item));
-}
-
 TSMetaData::TSMetaData(const TSMetaData &other)
 {
 	*this = other;
 }
 
-TSMetaData::TSMetaData(TSMetaData &&other)
+TSMetaData::TSMetaData(TSMetaData &&other) noexcept
 {
 	*this = std::move(other);
 }
@@ -139,7 +158,7 @@ const TSMetaData &TSMetaData::operator=(const TSMetaData &other)
 	return *this;
 }
 
-const TSMetaData &TSMetaData::operator=(TSMetaData &&other)
+const TSMetaData &TSMetaData::operator=(TSMetaData &&other) noexcept
 {
 	m_Data = std::move(other.m_Data);
 
@@ -152,7 +171,7 @@ TSDocument::TSDocument(const TSDocument &other)
 	*this = other;
 }
 
-TSDocument::TSDocument(TSDocument &&other)
+TSDocument::TSDocument(TSDocument &&other) noexcept
 {
 	*this = std::move(other);
 }
@@ -167,7 +186,7 @@ const TSDocument &TSDocument::operator=(const TSDocument &other)
 	return *this;
 }
 
-const TSDocument &TSDocument::operator=(TSDocument &&other)
+const TSDocument &TSDocument::operator=(TSDocument &&other) noexcept
 {
 	m_DocID = std::move(other.m_DocID);
 	m_Indexies = std::move(other.m_Indexies);
@@ -193,8 +212,8 @@ bool TSDocument::AddSentence(int sentence_num, int start_pos, int end_pos)
 
 	if( sentence_num >= m_Sentences.size() ) {
 		for( int i = (int)m_Sentences.size(); i < sentence_num; i++ )
-			m_Sentences.emplace_back(TSSentence(this, i, -1, -1));
-		m_Sentences.emplace_back(TSSentence(this, sentence_num, start_pos, end_pos));
+			m_Sentences.emplace_back(this, i, -1, -1);
+		m_Sentences.emplace_back(this, sentence_num, start_pos, end_pos);
 	} else {
 		m_Sentences[sentence_num].AddBoundaries(start_pos, end_pos);
 	}
@@ -209,18 +228,12 @@ bool TSDocument::AddIndexItem(TSIndexItem &&index_item, const std::vector<int> &
 
 	// fill sentences
 	for( const auto &sent_id : sentences ) {
-		if( !m_Sentences[sent_id].AddIndexItem(index_item, type) )
+		if( !m_Sentences[sent_id].AddIndexItemToIndex(type, index_item) )
 			return false;
 	}
 
 	// fill doc index
-	auto index_iter = std::find_if(m_Indexies.begin(), m_Indexies.end(), [type](const TSIndex &index) { return index.GetType() == type; });
-	if (index_iter == m_Indexies.end()) {
-		m_Indexies.emplace_back(TSIndex(type));
-		index_iter = m_Indexies.begin() + m_Indexies.size() - 1;
-	}
-
-	return index_iter->AddToIndex(std::move(index_item));
+	return AddIndexItemToIndex(type, std::move(index_item));
 }
 
 bool TSMetaData::AddData(SMetaDataType type, std::string &&data)

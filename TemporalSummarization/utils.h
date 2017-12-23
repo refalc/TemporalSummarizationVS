@@ -5,6 +5,7 @@
 #include <vector>
 #include <chrono>
 #include <array>
+#include <map>
 
 // typedefs
 using StringHash = std::array<unsigned long long, 3>;
@@ -113,4 +114,19 @@ private:
 	std::string m_sConfigPath;
 	std::vector<std::string> m_vQueries;
 	Params m_Params;
+};
+
+class CProfiler
+{
+public:
+	~CProfiler();
+	static CProfiler *Instance();
+	void AddDuration(const std::string &mark, double duration);
+	void DataToLog();
+private:
+	CProfiler();
+
+private:
+	static std::unique_ptr<CProfiler> m_spInstance;
+	std::map<std::string, double> m_Data;
 };

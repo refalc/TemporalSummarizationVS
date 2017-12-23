@@ -33,6 +33,9 @@
     <ClCompile Include="CNldxSearchEngine.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TSQueryConstructor.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\tshttpmanager.h">
@@ -48,6 +51,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="CNldxSearchEngine.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TSQueryConstructor.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

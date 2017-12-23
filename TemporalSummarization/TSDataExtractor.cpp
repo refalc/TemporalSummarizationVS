@@ -12,6 +12,7 @@ TSDataExtractor::TSDataExtractor()
 {
 	m_spSearchEngine.reset(new CNldxSearchEngine);
 	m_pReplyProcessor = m_spSearchEngine->GetReplyProcessor();
+	m_iMaxDocSize = 500000;
 }
 
 
@@ -20,41 +21,61 @@ TSDataExtractor::~TSDataExtractor()
 
 }
 
-bool TSDataExtractor::InitParameters(const std::initializer_list<float> &params) const
+ReturnCode TSDataExtractor::InitParameters(const std::initializer_list<float> &params) const
 {
 	if( !m_spSearchEngine )
-		return false;
+		return ReturnCode::TS_GENERAL_ERROR;
 
-	return m_spSearchEngine->InitParameters(params);
+	if( !m_spSearchEngine->InitParameters(params) )
+		return ReturnCode::TS_GENERAL_ERROR;
+
+	return ReturnCode::TS_NO_ERROR;
 }
 
-bool TSDataExtractor::GetDocument(TSDocument &document, const std::string &doc_id) const
+ReturnCode TSDataExtractor::GetDocument(TSDocument &document, const std::string &doc_id) const
 {
 	if( !m_spSearchEngine || !m_pReplyProcessor ) {
 		CLogger::Instance()->WriteToLog("ERROR: Search engine or reply processor does not inited");
-		return false;
+		return ReturnCode::TS_GENERAL_ERROR;
 	}
 
 	RequestDataType request = doc_id;
 	ReplyDataType reply;
 	if( !m_spSearchEngine->SendRequest(request, reply) ) {
 		CLogger::Instance()->WriteToLog("ERROR: Fail while sending request to search engine");
-		return false;
+		return ReturnCode::TS_GENERAL_ERROR;
+	}
+
+	if( reply.second.size() > m_iMaxDocSize ) {
+		CLogger::Instance()->WriteToLog("SKIPPED: Doc " + doc_id + " , size = " + std::to_string(reply.second.size()));
+		return ReturnCode::TS_DOC_SKIPPED;
 	}
 
 	ProcessedDataType data;
 	if( !m_pReplyProcessor->ProcessReply(reply, data) ) {
 		CLogger::Instance()->WriteToLog("ERROR: Fail while process reply from search engine");
-		return false;
+		return ReturnCode::TS_GENERAL_ERROR;
 	}
+
 	std::get<TSDocument>(data).InitDocID(doc_id);
-
 	document = std::move(std::get<TSDocument>(data));
+	SortDocIndexies(document);
 
-	return true;
+	return ReturnCode::TS_NO_ERROR;
 }
 
-bool TSDataExtractor::GetDocumentList(const std::vector<TSIndex> &query, std::vector<std::string> &doc_list) const
+void TSDataExtractor::SortDocIndexies(TSDocument &document) const
+{
+	for( long type = (long)SDataType::LEMMA; type != (long)SDataType::FINAL_TYPE; type++ ) {
+		TSIndexPtr p_index;
+		document.GetIndex((SDataType)type, p_index);
+		std::sort(p_index->begin(), p_index->end(), [] (const TSIndexItem &lhs, const TSIndexItem &rhs) {
+			return lhs.GetWeight() > rhs.GetWeight();
+		});
+	}
+}
+
+bool TSDataExtractor::GetDocumentList(const TSQuery &query, std::vector<std::string> &doc_list) const
 {
 	RequestDataType request = query;
 	ReplyDataType reply;
@@ -73,27 +94,31 @@ bool TSDataExtractor::GetDocumentList(const std::vector<TSIndex> &query, std::ve
 	return true;
 }
 
-bool TSDataExtractor::GetDocuments(TSDocCollection &collection, const std::vector<TSIndex> &query) const
+ReturnCode TSDataExtractor::GetDocuments(TSDocCollection &collection, const TSQuery &query) const
 {
 	if( !m_spSearchEngine || !m_pReplyProcessor ) {
 		CLogger::Instance()->WriteToLog("ERROR: Search engine or reply processor does not inited");
-		return false;
+		return ReturnCode::TS_GENERAL_ERROR;
 	}
 
 	std::vector<std::string> doc_list;
 	if( !GetDocumentList(query, doc_list) ) {
 		CLogger::Instance()->WriteToLog("ERROR: Fail while getting document list on query");
-		return false;
+		return ReturnCode::TS_GENERAL_ERROR;
 	}
 
 	CLogger::Instance()->WriteToLog("Process " + std::to_string(doc_list.size()) + " docs");
 	for( const auto &doc_id : doc_list ) {
 		TSDocument doc(doc_id);
-		if( !GetDocument(doc, doc.GetDocID()) )
-			return false;
+		ReturnCode get_doc_res = GetDocument(doc, doc.GetDocID());
+		if( get_doc_res == ReturnCode::TS_DOC_SKIPPED )
+			continue;
+
+		if( get_doc_res != ReturnCode::TS_NO_ERROR )
+			return ReturnCode::TS_GENERAL_ERROR;
 
 		collection.AddDocToCollection(std::move(doc));
 	}
 
-	return true;
+	return ReturnCode::TS_NO_ERROR;
 }

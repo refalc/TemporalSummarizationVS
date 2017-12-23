@@ -47,8 +47,8 @@ bool CNldxSearchEngine::SendRequest(const RequestDataType &request, ReplyDataTyp
 	if( std::holds_alternative<std::string>(request) ) {
 		http_request = m_sDocRequestPart + std::get<std::string>(request);
 		reply.first = ReplyType::DOC;
-	} else if( std::holds_alternative<std::vector<TSIndex>>(request) ) {
-		http_request = m_sDocListRequestPart + ConstructDocListRequestString(std::get<std::vector<TSIndex>>(request));
+	} else if( std::holds_alternative<TSQuery>(request) ) {
+		http_request = m_sDocListRequestPart + ConstructDocListRequestString(std::get<TSQuery>(request));
 		reply.first = ReplyType::DOC_LIST;
 	} else {
 		reply.first = ReplyType::ERR;
@@ -63,7 +63,7 @@ bool CNldxSearchEngine::SendRequest(const RequestDataType &request, ReplyDataTyp
 	return true;
 }
 
-std::string CNldxSearchEngine::ConstructDocListRequestString(const std::vector<TSIndex> &query) const
+std::string CNldxSearchEngine::ConstructDocListRequestString(const TSQuery &query) const
 {
 	auto IndexToQueryString = [] (const TSIndex &query_index, const std::string &prefix = "", const std::string &suffix = ""){
 		std::string result;
@@ -175,7 +175,7 @@ bool CNldxSearchEngine::CNldxReplyProcessor::ConstructDocListFromString(std::vec
 		if( std::stof(rank) < m_fMinDocRank )
 			break;
 
-		doc_list.emplace_back(std::move(id));
+		doc_list.push_back(std::move(id));
 	}
 	return true;
 }
@@ -214,7 +214,7 @@ std::vector<std::array<int, 3>> CNldxSearchEngine::CNldxReplyProcessor::ProcessP
 			len = std::stoi(str.substr(circ_find_res.first, circ_find_res.second - circ_find_res.first)),
 			sent = std::stoi(str.substr(rect_find_res.first, rect_find_res.second - rect_find_res.first));
 
-		results.emplace_back(std::array<int, 3>{pos, len, sent - 1});
+		results.push_back({ pos - 1, len, sent - 1 });
 
 		begin_pos = rect_find_res.second + space_semi_space_size;
 	}
@@ -279,25 +279,27 @@ bool CNldxSearchEngine::CNldxReplyProcessor::ProcessTrData(TSDocument &document,
 	auto all_pos_data = ProcessPosData(spos_data, std::stoi(scount));
 	switch( type ) {
 	case SDataType::SENT : {
-		if( utils::IsStringIntNumber(sword) )
-			document.AddSentence(std::stoi(sword) - 1, all_pos_data.front()[0] - 1, all_pos_data.front()[0] + all_pos_data.front()[1]);
+		if( utils::IsStringIntNumber(sword) ) {
+			int sentence_start_pos = all_pos_data.front()[0],
+				sentence_size = all_pos_data.front()[1],
+				sentence_id = std::stoi(sword) - 1;
+			document.AddSentence(sentence_id, sentence_start_pos, sentence_start_pos + sentence_size + 1);
+		}
 	} break;
 	case SDataType::LEMMA :
 	case SDataType::TERMIN :
 	case SDataType::WORD : {
-		std::vector<int> positions, sentences;
-		positions.reserve(all_pos_data.size());
+		std::vector<int> sentences;
 		int curr_sent = -1;
 		for( const auto &pos_data : all_pos_data ) {
-			positions.push_back(pos_data[0]);
-			if( curr_sent != pos_data[2] ) {
-				curr_sent = pos_data[2];
+			int sentence_id = pos_data[2];
+			if( curr_sent != sentence_id ) {
+				curr_sent = sentence_id;
 				sentences.push_back(curr_sent);
 			}
 		}
 
-		TSIndexItem index_item(sword, std::stof(sweight), std::move(positions));
-		if( !document.AddIndexItem(std::move(index_item), sentences, type) )
+		if( !document.AddIndexItem(TSIndexItem(sword, std::stof(sweight)), sentences, type) )
 			return false;
 	} break;
 	default:

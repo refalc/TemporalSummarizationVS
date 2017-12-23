@@ -476,3 +476,40 @@ CLogger::~CLogger()
 		m_pFile.close();
 }
 //--------------------LOGGER--------------------
+
+//--------------------PROFILER--------------------
+std::unique_ptr<CProfiler> CProfiler::m_spInstance = nullptr;
+CProfiler::~CProfiler()
+{
+}
+
+CProfiler::CProfiler()
+{
+
+}
+
+CProfiler *CProfiler::Instance()
+{
+	// todo parallelism
+	if( !m_spInstance ) {
+		m_spInstance.reset(new CProfiler());
+	}
+
+	return m_spInstance.get();
+}
+
+void CProfiler::AddDuration(const std::string &mark, double duration)
+{
+	if( m_Data.find(mark) == m_Data.end() )
+		m_Data.emplace(mark, duration);
+	else
+		m_Data[mark] += duration;
+}
+
+void CProfiler::DataToLog()
+{
+	for( const auto &elem : m_Data ) {
+		CLogger::Instance()->WriteToLog(elem.first + " : " + std::to_string(elem.second) + " sec");
+	}
+}
+//--------------------PROFILER--------------------
