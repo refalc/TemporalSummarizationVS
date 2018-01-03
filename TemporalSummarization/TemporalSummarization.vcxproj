@@ -129,6 +129,7 @@
     <ClCompile Include="..\tshttpmanager.cpp" />
     <ClCompile Include="CNldxSearchEngine.cpp" />
     <ClCompile Include="TSDataExtractor.cpp" />
+    <ClCompile Include="TSDocumentExtractor.cpp" />
     <ClCompile Include="TSPrimitives.cpp" />
     <ClCompile Include="TSQueryConstructor.cpp" />
     <ClCompile Include="utils.cpp" />
@@ -137,6 +138,7 @@
     <ClInclude Include="..\tshttpmanager.h" />
     <ClInclude Include="CNldxSearchEngine.h" />
     <ClInclude Include="TSDataExtractor.h" />
+    <ClInclude Include="TSDocumentExtractor.h" />
     <ClInclude Include="TSPrimitives.h" />
     <ClInclude Include="TSQueryConstructor.h" />
     <ClInclude Include="utils.h" />

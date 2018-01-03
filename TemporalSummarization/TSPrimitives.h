@@ -37,17 +37,20 @@ enum class SMetaDataType
 class TSDocument;
 class TSIndex;
 class TSIndexiesHolder;
-
+class TSDocCollection;
+class TSSentence;
 //
 
 // typedefs
 using TSQuery = TSIndexiesHolder;
+using TSDocumentPtr = TSDocument *;
 using ReplyDataType = std::pair<ReplyType, std::string>;
-using ProcessedDataType = std::variant<TSDocument, std::vector<std::string>>;
+using ProcessedDataType = std::variant<TSDocumentPtr, std::vector<std::string>>;
 using RequestDataType = std::variant<std::string, TSQuery>;
 using IndexItemIDType = std::string;
 using TSIndexPtr = TSIndex * ;
-using TSIndexConstPtr = const TSIndex * ;
+using TSIndexConstPtr = const TSIndex *;
+using TSSentencePtr = TSSentence *;
 //
 
 class TSIndexItemID
@@ -206,7 +209,14 @@ public:
 
 
 	bool AddData(SMetaDataType type, std::string &&data);
+	inline bool GetData(SMetaDataType type, std::string &data) const {
+		decltype(m_Data)::const_iterator iter = m_Data.find(type);
+		if( iter == m_Data.end() )
+			return false;
 
+		data = iter->second;
+		return true;
+	}
 private:
 	int ConstructIntDate(const std::string &data);
 
@@ -217,13 +227,7 @@ private:
 class TSDocument : public TSIndexiesHolder
 {
 public:
-	TSDocument() noexcept {}
-	TSDocument(const std::string &id) noexcept : m_DocID(id) {}
-	TSDocument(const TSDocument &other);
-	TSDocument(TSDocument &&other) noexcept;
-
-	const TSDocument &operator=(const TSDocument &other);
-	const TSDocument &operator=(TSDocument &&other) noexcept;
+	friend class TSDocCollection;
 
 	bool InitDocID(const std::string &doc_id);
 	bool AddSentence(int sentence_num, int start_pos, int end_pos);
@@ -232,6 +236,13 @@ public:
 
 	inline const std::string &GetDocID() const { return m_DocID; };
 	inline bool IsEmpty() const { return m_Indexies.empty(); };
+	inline bool GetMetaData(SMetaDataType type, std::string &data) const {
+		return m_MetaData.GetData(type, data);
+	}
+
+private:
+	TSDocument() noexcept {}
+	TSDocument(const std::string &id) noexcept : m_DocID(id) {}
 
 private:
 	std::string m_DocID;
@@ -242,7 +253,10 @@ private:
 class TSDocCollection
 {
 public:
-	bool AddDocToCollection(TSDocument &&doc);
+	bool SetNode(std::map<std::string, TSDocument>::node_type &&node);
+	std::map<std::string, TSDocument>::node_type ExtractNode(const std::string &doc_id);
+	TSDocumentPtr AllocateDocument();
+	bool CommitAllocatedDocument();
 
 	inline size_t size() const { return m_Docs.size(); }
 	// iterate docs
@@ -253,6 +267,22 @@ public:
 
 private:
 	std::map<std::string, TSDocument> m_Docs;
+	std::map<std::string, TSDocument>::node_type m_UncommitedDoc;
+};
+
+class TSTimeLineCollections
+{
+public:
+	void AddDocNode(std::map<std::string, TSDocument>::node_type &&node, int time);
+
+	// iterate docs
+	inline std::map<int, TSDocCollection>::iterator begin() { return m_Collections.begin(); }
+	inline std::map<int, TSDocCollection>::iterator end() { return m_Collections.end(); }
+	inline std::map<int, TSDocCollection>::const_iterator begin() const { return m_Collections.begin(); }
+	inline std::map<int, TSDocCollection>::const_iterator end() const { return m_Collections.end(); }
+
+private:
+	std::map<int, TSDocCollection> m_Collections;
 };
 
 class IReplyProcessor
@@ -269,4 +299,17 @@ public:
 	virtual bool InitParameters(const std::initializer_list<float> &params) = 0;
 	virtual bool SendRequest(const RequestDataType &request, ReplyDataType &reply) = 0;
 	virtual IReplyProcessor *GetReplyProcessor() = 0;
+};
+
+class ISimpleModule
+{
+public:
+	virtual bool InitParameters(const std::initializer_list<float> &params) = 0;
+	inline bool InitDataExtractor(const class TSDataExtractor *data_extractor) {
+		m_pDataExtractor = data_extractor;
+		return true;
+	}
+
+protected:
+	const TSDataExtractor *m_pDataExtractor;
 };

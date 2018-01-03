@@ -32,7 +32,7 @@ ReturnCode TSDataExtractor::InitParameters(const std::initializer_list<float> &p
 	return ReturnCode::TS_NO_ERROR;
 }
 
-ReturnCode TSDataExtractor::GetDocument(TSDocument &document, const std::string &doc_id) const
+ReturnCode TSDataExtractor::GetDocument(const std::string &doc_id, TSDocumentPtr document) const
 {
 	if( !m_spSearchEngine || !m_pReplyProcessor ) {
 		CLogger::Instance()->WriteToLog("ERROR: Search engine or reply processor does not inited");
@@ -51,24 +51,23 @@ ReturnCode TSDataExtractor::GetDocument(TSDocument &document, const std::string 
 		return ReturnCode::TS_DOC_SKIPPED;
 	}
 
-	ProcessedDataType data;
+	ProcessedDataType data = document;
 	if( !m_pReplyProcessor->ProcessReply(reply, data) ) {
 		CLogger::Instance()->WriteToLog("ERROR: Fail while process reply from search engine");
 		return ReturnCode::TS_GENERAL_ERROR;
 	}
 
-	std::get<TSDocument>(data).InitDocID(doc_id);
-	document = std::move(std::get<TSDocument>(data));
+	document->InitDocID(doc_id);
 	SortDocIndexies(document);
 
 	return ReturnCode::TS_NO_ERROR;
 }
 
-void TSDataExtractor::SortDocIndexies(TSDocument &document) const
+void TSDataExtractor::SortDocIndexies(TSDocumentPtr document) const
 {
 	for( long type = (long)SDataType::LEMMA; type != (long)SDataType::FINAL_TYPE; type++ ) {
 		TSIndexPtr p_index;
-		document.GetIndex((SDataType)type, p_index);
+		document->GetIndex((SDataType)type, p_index);
 		std::sort(p_index->begin(), p_index->end(), [] (const TSIndexItem &lhs, const TSIndexItem &rhs) {
 			return lhs.GetWeight() > rhs.GetWeight();
 		});
@@ -94,7 +93,7 @@ bool TSDataExtractor::GetDocumentList(const TSQuery &query, std::vector<std::str
 	return true;
 }
 
-ReturnCode TSDataExtractor::GetDocuments(TSDocCollection &collection, const TSQuery &query) const
+ReturnCode TSDataExtractor::GetDocuments(const TSQuery &query, TSDocCollection &collection) const
 {
 	if( !m_spSearchEngine || !m_pReplyProcessor ) {
 		CLogger::Instance()->WriteToLog("ERROR: Search engine or reply processor does not inited");
@@ -109,15 +108,15 @@ ReturnCode TSDataExtractor::GetDocuments(TSDocCollection &collection, const TSQu
 
 	CLogger::Instance()->WriteToLog("Process " + std::to_string(doc_list.size()) + " docs");
 	for( const auto &doc_id : doc_list ) {
-		TSDocument doc(doc_id);
-		ReturnCode get_doc_res = GetDocument(doc, doc.GetDocID());
-		if( get_doc_res == ReturnCode::TS_DOC_SKIPPED )
+		TSDocumentPtr doc = collection.AllocateDocument();
+		ReturnCode res = GetDocument(doc_id, doc);
+		if( res == ReturnCode::TS_DOC_SKIPPED )
 			continue;
 
-		if( get_doc_res != ReturnCode::TS_NO_ERROR )
+		if( res != ReturnCode::TS_NO_ERROR )
 			return ReturnCode::TS_GENERAL_ERROR;
 
-		collection.AddDocToCollection(std::move(doc));
+		collection.CommitAllocatedDocument();
 	}
 
 	return ReturnCode::TS_NO_ERROR;

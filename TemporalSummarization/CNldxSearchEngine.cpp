@@ -123,11 +123,8 @@ bool CNldxSearchEngine::CNldxReplyProcessor::ProcessReply(const ReplyDataType &r
 
 	switch( reply.first ) {
 	case ReplyType::DOC: {
-		TSDocument doc;
-		if( !ConstructDocFromString(doc, std::move(reply_text)) )
+		if( !ConstructDocFromString(std::get<TSDocumentPtr>(data), std::move(reply_text)) )
 			return false;
-
-		data = std::move(doc);
 	} break;
 	case ReplyType::DOC_LIST: {
 		std::vector<std::string> doc_list;
@@ -143,7 +140,7 @@ bool CNldxSearchEngine::CNldxReplyProcessor::ProcessReply(const ReplyDataType &r
 	return true;
 }
 
-bool CNldxSearchEngine::CNldxReplyProcessor::ConstructDocFromString(TSDocument &document, std::string &&doc_text) const
+bool CNldxSearchEngine::CNldxReplyProcessor::ConstructDocFromString(TSDocumentPtr document, std::string &&doc_text) const
 {
 	doc_text = utils::converter::Utf8_to_cp1251(doc_text.data());
 	doc_text.erase(std::remove_if(doc_text.begin(), doc_text.end(), [](const char &symb) {return symb == '\n' || symb == '\r'; }));
@@ -222,7 +219,7 @@ std::vector<std::array<int, 3>> CNldxSearchEngine::CNldxReplyProcessor::ProcessP
 	return results;
 }
 
-bool CNldxSearchEngine::CNldxReplyProcessor::ExtractIndexData(TSDocument &document, const std::string &doc_text) const
+bool CNldxSearchEngine::CNldxReplyProcessor::ExtractIndexData(TSDocumentPtr document, const std::string &doc_text) const
 {
 	constexpr int td_in_tr_size = 6;
 	std::pair<int, int> tr_res(0, 0);
@@ -270,7 +267,7 @@ bool CNldxSearchEngine::CNldxReplyProcessor::FindTag(const std::string &text, co
 	return true;
 }
 
-bool CNldxSearchEngine::CNldxReplyProcessor::ProcessTrData(TSDocument &document, const std::string &stype, const std::string &sword, const std::string &sweight, const std::string &scount, const std::string &spos_data) const
+bool CNldxSearchEngine::CNldxReplyProcessor::ProcessTrData(TSDocumentPtr document, const std::string &stype, const std::string &sword, const std::string &sweight, const std::string &scount, const std::string &spos_data) const
 {
 	SDataType type = String2Type(stype);
 	if( type == SDataType::FINAL_TYPE )
@@ -283,7 +280,7 @@ bool CNldxSearchEngine::CNldxReplyProcessor::ProcessTrData(TSDocument &document,
 			int sentence_start_pos = all_pos_data.front()[0],
 				sentence_size = all_pos_data.front()[1],
 				sentence_id = std::stoi(sword) - 1;
-			document.AddSentence(sentence_id, sentence_start_pos, sentence_start_pos + sentence_size + 1);
+			document->AddSentence(sentence_id, sentence_start_pos, sentence_start_pos + sentence_size + 1);
 		}
 	} break;
 	case SDataType::LEMMA :
@@ -299,7 +296,7 @@ bool CNldxSearchEngine::CNldxReplyProcessor::ProcessTrData(TSDocument &document,
 			}
 		}
 
-		if( !document.AddIndexItem(TSIndexItem(sword, std::stof(sweight)), sentences, type) )
+		if( !document->AddIndexItem(TSIndexItem(sword, std::stof(sweight)), sentences, type) )
 			return false;
 	} break;
 	default:
@@ -309,7 +306,7 @@ bool CNldxSearchEngine::CNldxReplyProcessor::ProcessTrData(TSDocument &document,
 	return true;
 }
 
-bool CNldxSearchEngine::CNldxReplyProcessor::ExtractMetaData(TSDocument &document, const std::string &doc_text) const
+bool CNldxSearchEngine::CNldxReplyProcessor::ExtractMetaData(TSDocumentPtr document, const std::string &doc_text) const
 {
 	auto ExtractMeta = [this] (const std::string &doc_text, const std::string &meta_tag, std::pair<int, int> &result) {
 		std::pair<int, int> res;
@@ -323,11 +320,11 @@ bool CNldxSearchEngine::CNldxReplyProcessor::ExtractMetaData(TSDocument &documen
 		return true;
 	};
 
-	auto ExtractAndAddMeta = [this, &ExtractMeta] (TSDocument &document, const std::string &meta_tag, SMetaDataType type, const std::string &doc_text) {
+	auto ExtractAndAddMeta = [this, &ExtractMeta] (TSDocumentPtr document, const std::string &meta_tag, SMetaDataType type, const std::string &doc_text) {
 		std::pair<int, int> result_pair{ -1, -1 };
 		if( ExtractMeta(doc_text, meta_tag, result_pair) ) {
 			std::string mdata = doc_text.substr(result_pair.first, result_pair.second - result_pair.first);
-			document.AddMetaData(type, std::move(mdata));
+			document->AddMetaData(type, std::move(mdata));
 		}
 	};
 	ExtractAndAddMeta(document, "KRMN_DATE", SMetaDataType::DATE, doc_text);

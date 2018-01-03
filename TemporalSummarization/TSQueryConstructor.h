@@ -1,19 +1,15 @@
 #pragma once
 #include "TSPrimitives.h"
 
-class TSQueryConstructor
+class TSQueryConstructor : public ISimpleModule
 {
 public:
 	TSQueryConstructor();
 	~TSQueryConstructor();
 
-	bool InitParameters(const std::initializer_list<float> &params);
-	inline bool InitDataExtractor(const class TSDataExtractor *data_extractor) {
-		m_pDataExtractor = data_extractor; 
-		return true;
-	}
+	virtual bool InitParameters(const std::initializer_list<float> &params) override;
 
-	bool ConstructQueryFromDoc(const TSDocument &doc, TSQuery &query) const;
+	bool ConstructQueryFromDoc(const TSDocumentPtr doc, TSQuery &query) const;
 	bool QueryConstructionProcess(const std::string &doc_id, TSQuery &query) const;
 	bool QueryExtensionProcess(const TSQuery &query, TSQuery &extended_query) const;
 
@@ -23,8 +19,6 @@ private:
 	void CombineStatistics(TSIndex &statistic_index, int query_size) const; 
 
 private:
-
-	const TSDataExtractor *m_pDataExtractor;
 	int m_iLemmsFor1L;
 	int m_iTermsFor1L;
 	int m_iDocCountForQEProcess;

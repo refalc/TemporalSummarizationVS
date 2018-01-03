@@ -15,12 +15,12 @@ public:
 	~TSDataExtractor();
 
 	ReturnCode InitParameters(const std::initializer_list<float> &params) const;
-	ReturnCode GetDocument(TSDocument &document, const std::string &doc_id) const;
-	ReturnCode GetDocuments(TSDocCollection &collection, const TSQuery &query) const;
+	ReturnCode GetDocument(const std::string &doc_id, TSDocumentPtr document) const;
+	ReturnCode GetDocuments(const TSQuery &query, TSDocCollection &collection) const;
 
 private:
 	bool GetDocumentList(const TSQuery &query, std::vector<std::string> &doc_list) const;
-	void SortDocIndexies(TSDocument &document) const;
+	void SortDocIndexies(TSDocumentPtr document) const;
 
 private:
 	std::unique_ptr<class ISearchEngine> m_spSearchEngine;

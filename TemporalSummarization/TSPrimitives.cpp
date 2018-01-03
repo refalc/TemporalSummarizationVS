@@ -166,7 +166,7 @@ const TSMetaData &TSMetaData::operator=(TSMetaData &&other) noexcept
 }
 
 
-TSDocument::TSDocument(const TSDocument &other)
+/*TSDocument::TSDocument(const TSDocument &other)
 {
 	*this = other;
 }
@@ -174,9 +174,9 @@ TSDocument::TSDocument(const TSDocument &other)
 TSDocument::TSDocument(TSDocument &&other) noexcept
 {
 	*this = std::move(other);
-}
+}*/
 
-const TSDocument &TSDocument::operator=(const TSDocument &other)
+/*const TSDocument &TSDocument::operator=(const TSDocument &other)
 {
 	m_DocID = other.m_DocID;
 	m_Indexies = other.m_Indexies;
@@ -194,7 +194,7 @@ const TSDocument &TSDocument::operator=(TSDocument &&other) noexcept
 	m_MetaData = std::move(other.m_MetaData);
 
 	return *this;
-}
+}*/
 
 bool TSDocument::InitDocID(const std::string &doc_id)
 {
@@ -262,15 +262,45 @@ int TSMetaData::ConstructIntDate(const std::string &data)
 	return std::stoi(day) + std::stoi(month) * 31 + std::stoi(year) * 365;
 }
 
-bool TSDocCollection::AddDocToCollection(TSDocument &&doc)
+TSDocumentPtr TSDocCollection::AllocateDocument()
 {
-	const std::string &doc_id = doc.GetDocID();
-	auto doc_iter = m_Docs.lower_bound(doc_id);
-	if( doc_iter == m_Docs.end() || m_Docs.key_comp()(doc_id, doc_iter->first) ) {
-		m_Docs.emplace_hint(doc_iter, std::make_pair(doc_id, std::move(doc)));
-		return true;
-	} 
+	if( m_UncommitedDoc.empty() ) {
+		auto iter = m_Docs.emplace_hint(m_Docs.end(), "uncommited", TSDocument());
+		m_UncommitedDoc = m_Docs.extract(iter);
+	}
+	return &m_UncommitedDoc.mapped();
+}
 
-	// doc with this doc_id already exist
-	return false;
+bool TSDocCollection::CommitAllocatedDocument()
+{
+	if( m_UncommitedDoc.empty() )
+		return false;
+
+	m_UncommitedDoc.key() = m_UncommitedDoc.mapped().GetDocID();
+	m_Docs.insert(std::move(m_UncommitedDoc));
+
+	return true;
+}
+
+bool TSDocCollection::SetNode(std::map<std::string, TSDocument>::node_type &&node)
+{
+	if( node.empty() )
+		return false;
+
+	m_Docs.insert(std::move(node));
+	return true;
+}
+
+std::map<std::string, TSDocument>::node_type TSDocCollection::ExtractNode(const std::string &doc_id)
+{
+	return m_Docs.extract(doc_id);
+}
+
+void TSTimeLineCollections::AddDocNode(std::map<std::string, TSDocument>::node_type &&node, int time)
+{
+	decltype(m_Collections)::iterator iter = m_Collections.lower_bound(time);
+	if( iter == m_Collections.end() || m_Collections.key_comp()(time, iter->first) )
+		iter = m_Collections.emplace_hint(iter, time, TSDocCollection());
+
+	iter->second.SetNode(std::move(node));
 }

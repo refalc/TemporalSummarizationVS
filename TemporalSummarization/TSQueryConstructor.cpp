@@ -23,10 +23,10 @@ bool TSQueryConstructor::InitParameters(const std::initializer_list<float> &para
 	float soft_or = params.begin()[3],
 		  min_doc_rank = params.begin()[4];
 
-	int top_lemm_for_qe = params.begin()[5],
-		top_termin_for_qe = params.begin()[6],
-		result_lemma_size = params.begin()[7],
-		result_termins_size = params.begin()[8];
+	int top_lemm_for_qe = (int)params.begin()[5],
+		top_termin_for_qe = (int)params.begin()[6],
+		result_lemma_size = (int)params.begin()[7],
+		result_termins_size = (int)params.begin()[8];
 
 	if( lemms_size < 1 || terms_size < 0 || doc_count <= 0 ||
 		soft_or >= 1 || soft_or < 0 ||
@@ -49,7 +49,7 @@ bool TSQueryConstructor::InitParameters(const std::initializer_list<float> &para
 	return true;
 }
 
-bool TSQueryConstructor::ConstructQueryFromDoc(const TSDocument &doc, TSQuery &query) const
+bool TSQueryConstructor::ConstructQueryFromDoc(const TSDocumentPtr doc, TSQuery &query) const
 {
 	query.clear();
 	query.InitIndex(SDataType::LEMMA);
@@ -57,12 +57,12 @@ bool TSQueryConstructor::ConstructQueryFromDoc(const TSDocument &doc, TSQuery &q
 
 	TSIndexConstPtr doc_index_ptr;
 	TSIndexPtr query_index_ptr;
-	if( !doc.GetIndex(SDataType::LEMMA, doc_index_ptr) || !query.GetIndex(SDataType::LEMMA, query_index_ptr) )
+	if( !doc->GetIndex(SDataType::LEMMA, doc_index_ptr) || !query.GetIndex(SDataType::LEMMA, query_index_ptr) )
 		return false;
 
 	CopyFromIndexFirstNItems(*doc_index_ptr, m_iLemmsFor1L, *query_index_ptr);
 
-	if( !doc.GetIndex(SDataType::TERMIN, doc_index_ptr) || !query.GetIndex(SDataType::TERMIN, query_index_ptr) )
+	if( !doc->GetIndex(SDataType::TERMIN, doc_index_ptr) || !query.GetIndex(SDataType::TERMIN, query_index_ptr) )
 		return false;
 
 	CopyFromIndexFirstNItems(*doc_index_ptr, m_iTermsFor1L, *query_index_ptr);
@@ -75,8 +75,9 @@ bool TSQueryConstructor::QueryConstructionProcess(const std::string &doc_id, TSQ
 	if( !m_pDataExtractor )
 		return false;
 
-	TSDocument doc;
-	if( m_pDataExtractor->GetDocument(doc, doc_id) != ReturnCode::TS_NO_ERROR )
+	TSDocCollection coll;
+	TSDocumentPtr doc = coll.AllocateDocument();
+	if( m_pDataExtractor->GetDocument(doc_id, doc) != ReturnCode::TS_NO_ERROR )
 		return false;
 
 	if( !ConstructQueryFromDoc(doc, query) )
@@ -92,7 +93,7 @@ bool TSQueryConstructor::QueryExtensionProcess(const TSQuery &query, TSQuery &ex
 		return false;
 
 	TSDocCollection collection;
-	if( m_pDataExtractor->GetDocuments(collection, query) != ReturnCode::TS_NO_ERROR )
+	if( m_pDataExtractor->GetDocuments(query, collection) != ReturnCode::TS_NO_ERROR )
 		return false;
 	
 	extended_query.clear();
