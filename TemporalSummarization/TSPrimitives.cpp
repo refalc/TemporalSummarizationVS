@@ -62,6 +62,35 @@ std::string TSIndex::GetString() const
 	return str;
 }
 
+float TSIndex::Len() const
+{
+	float len2 = 0.f;
+	for( const auto elem : m_Index )
+		len2 += elem.GetWeight() * elem.GetWeight();
+
+	return sqrt(len2);
+}
+
+float TSIndex::operator*(const TSIndex &other) const
+{
+	if( m_Index.empty() || other.m_Index.empty() )
+		return 0.f;
+
+	float score = 0.f;
+	auto curr_iter = m_Index.begin(), other_iter = other.begin();
+	while( curr_iter != m_Index.end() && other_iter != other.end() ) {
+		if( *curr_iter == *other_iter ) {
+			score += curr_iter->GetWeight() * other_iter->GetWeight();
+		} else if( *curr_iter < *other_iter ) {
+			curr_iter++;
+		} else {
+			other_iter++;
+		}
+	}
+
+	return score / (Len() * other.Len());
+}
+
 bool TSIndexiesHolder::GetIndex(SDataType type, TSIndex &index) const {
 	auto index_iter = std::find_if(m_Indexies.begin(), m_Indexies.end(), [type] (const TSIndex &index) {
 		return index.GetType() == type; 
@@ -107,6 +136,20 @@ bool TSIndexiesHolder::InitIndex(SDataType type)
 
 	m_Indexies.emplace_back(type);
 	return true;
+}
+
+float TSIndexiesHolder::operator*(const TSIndexiesHolder &other) const
+{
+	return Similarity(other, SDataType::LEMMA);
+}
+
+float TSIndexiesHolder::Similarity(const TSIndexiesHolder &other, SDataType type) const
+{
+	TSIndexConstPtr curr_index, other_index;
+	if( !GetIndex(type, curr_index) || !other.GetIndex(type, other_index) )
+		return 0.f;
+
+	return *curr_index * *other_index;
 }
 
 TSSentence::TSSentence(const TSSentence &other)
@@ -303,4 +346,37 @@ void TSTimeLineCollections::AddDocNode(std::map<std::string, TSDocument>::node_t
 		iter = m_Collections.emplace_hint(iter, time, TSDocCollection());
 
 	iter->second.SetNode(std::move(node));
+}
+
+bool TSTimeLineQueries::AddQuery(int time_anchor, TSQuery &&query)
+{
+	auto queries_iter = m_Queries.lower_bound(time_anchor);
+	if( queries_iter != m_Queries.end() && !m_Queries.key_comp()(time_anchor, queries_iter->first) )
+		return false;
+
+	m_Queries.emplace_hint(queries_iter, time_anchor, std::move(query));
+	return true;
+}
+
+bool TSTimeLineQueries::GetQuery(int time_anchor, TSQueryConstPtr &query) const
+{
+	if( m_Queries.empty() )
+		return false;
+
+	auto queries_iter = m_Queries.lower_bound(time_anchor);
+	if( queries_iter != m_Queries.end() && (!m_Queries.key_comp()(time_anchor, queries_iter->first) || queries_iter == m_Queries.begin()) )
+		query = &queries_iter->second;
+	else if( queries_iter == m_Queries.end() )
+		query = &(m_Queries.rbegin()->second);
+	else {
+		auto previous_query = queries_iter;
+		previous_query--;
+
+		if( queries_iter->first - time_anchor > (time_anchor - previous_query->first) )
+			query = &previous_query->second;
+		else
+			query = &queries_iter->second;
+	}
+
+	return true;
 }

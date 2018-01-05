@@ -128,19 +128,23 @@
     <ClCompile Include="..\main.cpp" />
     <ClCompile Include="..\tshttpmanager.cpp" />
     <ClCompile Include="CNldxSearchEngine.cpp" />
+    <ClCompile Include="TSController.cpp" />
     <ClCompile Include="TSDataExtractor.cpp" />
     <ClCompile Include="TSDocumentExtractor.cpp" />
     <ClCompile Include="TSPrimitives.cpp" />
     <ClCompile Include="TSQueryConstructor.cpp" />
+    <ClCompile Include="TSSolver.cpp" />
     <ClCompile Include="utils.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\tshttpmanager.h" />
     <ClInclude Include="CNldxSearchEngine.h" />
+    <ClInclude Include="TSController.h" />
     <ClInclude Include="TSDataExtractor.h" />
     <ClInclude Include="TSDocumentExtractor.h" />
     <ClInclude Include="TSPrimitives.h" />
     <ClInclude Include="TSQueryConstructor.h" />
+    <ClInclude Include="TSSolver.h" />
     <ClInclude Include="utils.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

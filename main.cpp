@@ -4,6 +4,7 @@
 #include "TemporalSummarization\utils.h"
 #include "TemporalSummarization\TSQueryConstructor.h"
 #include "TemporalSummarization\TSDocumentExtractor.h"
+#include "TemporalSummarization\TSSolver.h"
 
 int main(int argc, char *argv[])
 {
@@ -45,6 +46,12 @@ int main(int argc, char *argv[])
 		return false;
 
 
+	TSTimeLineQueries queries;
+	queries.AddQuery(0, std::move(double_extended_query));
+
+	TSSolver solver;
+	std::vector<std::pair<float, TSSentenceConstPtr>> temporal_summary;
+	solver.GetTemporalSummary(collections, queries, 15, temporal_summary);
 
 	auto t1_e = std::chrono::high_resolution_clock::now();
 	CProfiler::Instance()->AddDuration("all", (double)std::chrono::duration_cast<std::chrono::microseconds>(t1_e - t1_s).count() / 1e6);

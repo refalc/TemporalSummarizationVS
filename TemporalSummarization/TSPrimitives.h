@@ -44,6 +44,7 @@ class TSSentence;
 // typedefs
 using TSQuery = TSIndexiesHolder;
 using TSDocumentPtr = TSDocument *;
+using TSDocumentConstPtr = const TSDocument * ;
 using ReplyDataType = std::pair<ReplyType, std::string>;
 using ProcessedDataType = std::variant<TSDocumentPtr, std::vector<std::string>>;
 using RequestDataType = std::variant<std::string, TSQuery>;
@@ -51,6 +52,9 @@ using IndexItemIDType = std::string;
 using TSIndexPtr = TSIndex * ;
 using TSIndexConstPtr = const TSIndex *;
 using TSSentencePtr = TSSentence *;
+using TSSentenceConstPtr = const TSSentence * ;
+using TSQueryPtr = TSQuery * ;
+using TSQueryConstPtr = const TSQuery * ;
 //
 
 class TSIndexItemID
@@ -132,6 +136,9 @@ public:
 		return m_Index.erase(pos);
 	}
 	
+	float Len() const;
+	// m_Index must be sorted !!!
+	float operator*(const TSIndex &other) const;
 
 private:
 	SDataType m_eIndexType;
@@ -161,12 +168,14 @@ public:
 		return index_iter->AddToIndex(std::forward<T>(item));
 	}
 
+	inline size_t size() const { return m_Indexies.size(); }
 	void clear() { m_Indexies.clear(); }
 	inline std::vector<TSIndex>::iterator begin() { return m_Indexies.begin(); }
 	inline std::vector<TSIndex>::iterator end() { return m_Indexies.end(); }
 	inline std::vector<TSIndex>::const_iterator begin() const { return m_Indexies.begin(); }
 	inline std::vector<TSIndex>::const_iterator end() const { return m_Indexies.end(); }
-
+	float operator*(const TSIndexiesHolder &other) const;
+	float Similarity(const TSIndexiesHolder &other, SDataType type) const;
 protected:
 	std::vector<TSIndex> m_Indexies;
 };
@@ -188,6 +197,8 @@ public:
 
 	inline void AddBoundaries(int start_pos, int end_pos) { m_iStartPos = start_pos; m_iEndPos = end_pos; }
 	inline bool IsCorrectBoundaries() const { return m_iStartPos >= 0 && m_iEndPos > m_iStartPos; }	
+	inline TSDocumentConstPtr GetDocPtr() const { return m_pDoc; }
+	inline int GetSentenseNumber() const { return m_iSentenceNum; }
 
 private:
 	const TSDocument *m_pDoc;
@@ -233,6 +244,12 @@ public:
 	bool AddSentence(int sentence_num, int start_pos, int end_pos);
 	bool AddIndexItem(TSIndexItem &&index_item, const std::vector<int> &sentences, SDataType type);
 	inline bool AddMetaData(SMetaDataType type, std::string &&data) { return m_MetaData.AddData(type, std::move(data)); }
+
+	inline size_t sentences_size() const { return m_Sentences.size(); }
+	inline std::vector<TSSentence>::iterator sentences_begin() { return m_Sentences.begin(); }
+	inline std::vector<TSSentence>::iterator sentences_end() { return m_Sentences.end(); }
+	inline std::vector<TSSentence>::const_iterator sentences_begin() const { return m_Sentences.begin(); }
+	inline std::vector<TSSentence>::const_iterator sentences_end() const { return m_Sentences.end(); }
 
 	inline const std::string &GetDocID() const { return m_DocID; };
 	inline bool IsEmpty() const { return m_Indexies.empty(); };
@@ -283,6 +300,15 @@ public:
 
 private:
 	std::map<int, TSDocCollection> m_Collections;
+};
+
+class TSTimeLineQueries
+{
+public:
+	bool AddQuery(int time_anchor, TSQuery &&query);
+	bool GetQuery(int time_anchor, TSQueryConstPtr &query) const;
+private:
+	std::map<int, TSQuery> m_Queries;
 };
 
 class IReplyProcessor
