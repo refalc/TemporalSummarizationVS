@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
 		std::vector<std::string> input_queries;
 
 		int summary_size = 15;
-		if( !arg_reader.GetParams(input_params) || !arg_reader.GetAnswerPath(input_answer_path) || !arg_reader.GetW2VPath )
+		if( !arg_reader.GetParams(input_params) || !arg_reader.GetAnswerPath(input_answer_path) || !arg_reader.GetW2VPath(input_w2v_path) )
 			return -1;
 
 		if( !controller.InitParameters(input_params, input_answer_path, input_w2v_path, summary_size) )
@@ -31,10 +31,38 @@ int main(int argc, char *argv[])
 	} else {
 		TSController controller;
 		Params input_params;
-		std::string input_answer_path, input_w2v_path;
-		std::vector<std::string> input_queries;
 
-		int summary_size = 15;
+		input_params.m_MaxAnswerSize = 15;            //todo task_param
+		input_params.m_PMinSentSize = 4;              //todo hardcode
+		input_params.m_PMinMMR = 0.0001;              //todo hardcode
+		input_params.m_PMaxSentSize = 50;             //todo hardcode
+		input_params.m_PowerMethodEps = 0.0000001;    //todo hardcode
+		input_params.m_SentSimThreshold = 0.8;
+
+		input_params.m_PDocCount = 500;
+		input_params.m_QEQuerrySize = 10;
+		input_params.m_QETopLemms = 15;
+		input_params.m_QEDocCount = 50;
+		input_params.m_PSoftOr = 0.3;
+		input_params.m_DIMinLinkScore = 0.65;
+		input_params.m_PKeepL = 5;
+		input_params.m_PKeepT = 2;
+		input_params.m_PLambda = 0.84;
+		input_params.m_QEMinDocRank = 0.3;
+		input_params.m_PTemporalMode = false;
+		input_params.m_DocImportance = false;
+		input_params.m_DIAlpha = 0.35;
+		input_params.m_DIPowerMethodDFactor = 0.35;
+		input_params.m_TempMaxDailyAnswerSize = 15;
+		input_params.m_DIDocBoundary = 0.7;
+		input_params.m_PQuerryEx = true;
+		input_params.m_QEDEInitQuerrySize = 5;
+		input_params.m_QEDoubleExtension = true;
+
+		std::string input_answer_path = "..//Data//answer.xml", input_w2v_path = "../w2v.bin";
+		std::vector<std::string> input_queries = {"10365689"};
+
+		int summary_size = input_params.m_MaxAnswerSize;
 		if( !controller.InitParameters(input_params, input_answer_path, input_w2v_path, summary_size) )
 			return -1;
 

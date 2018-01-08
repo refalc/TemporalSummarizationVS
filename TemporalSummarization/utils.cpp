@@ -1,5 +1,6 @@
 #include "utils.h"
 #include <windows.h>
+#include <iostream>
 
 // !!copy from outside
 // todo rewrite
@@ -368,7 +369,6 @@ bool CArgReader::ReadConfig(std::string path_to_config)
 	cur_params.m_PMinMMR = 0.0001;              //todo hardcode
 	cur_params.m_PMaxSentSize = 50;             //todo hardcode
 	cur_params.m_PLambdaTemp = 0;               //todo del
-	cur_params.m_PMultiQuerry = false;          //todo del
 	cur_params.m_PowerMethodEps = 0.0000001;    //todo hardcode
 	cur_params.m_SentSimThreshold = 0.8;
 
@@ -513,3 +513,253 @@ void CProfiler::DataToLog()
 	}
 }
 //--------------------PROFILER--------------------
+
+//--------------------INDEX--------------------
+std::unique_ptr<CIndex> CIndex::m_spInstance = nullptr;
+CIndex *CIndex::Instance()
+{
+	// todo parallelism
+	if( !m_spInstance ) {
+		m_spInstance.reset(new CIndex());
+	}
+
+	return m_spInstance.get();
+}
+
+CIndex::CIndex()
+{
+	m_iLastIndex = 0;
+
+	if( !Load() ) {
+		std::cout << "Error to load index from " + m_sFileName << std::endl;
+		CLogger::Instance()->WriteToLog("Error to load index from " + m_sFileName);
+	}
+
+	std::set<std::string> vStopWords;
+	vStopWords.insert("б");
+	vStopWords.insert("аег");
+	vStopWords.insert("дн");
+	vStopWords.insert("хг");
+	vStopWords.insert("й");
+	vStopWords.insert("мю");
+	vStopWords.insert("он");
+	vStopWords.insert("н");
+	vStopWords.insert("нр");
+	vStopWords.insert("оепед");
+	vStopWords.insert("опх");
+	vStopWords.insert("вепег");
+	vStopWords.insert("я");
+	vStopWords.insert("с");
+	vStopWords.insert("гю");
+	vStopWords.insert("мюд");
+	vStopWords.insert("на");
+	vStopWords.insert("онд");
+	vStopWords.insert("опн");
+	vStopWords.insert("дкъ");
+	vStopWords.insert("х");
+	vStopWords.insert("хкх");
+	vStopWords.insert("ю");
+	vStopWords.insert("мн");
+	vStopWords.insert("рюй");
+	vStopWords.insert("MDASH");
+	vStopWords.insert("RAQUO");
+	vStopWords.insert("LAQUO");
+	vStopWords.insert("бш");
+	vStopWords.insert("ъ");
+	vStopWords.insert("рш");
+	vStopWords.insert("лш");
+	vStopWords.insert("QUOT");
+	vStopWords.insert("NDASH");
+	vStopWords.insert("NBSP");
+
+	for( const auto &elem : vStopWords ) {
+		m_StopWords.insert(AddToIndex(elem));
+	}
+}
+
+CIndex::~CIndex()
+{
+	if( !Save() ) {
+		std::cout << "Error save file " + m_sFileName << std::endl;
+		CLogger::Instance()->WriteToLog("Error save file " + m_sFileName);
+	}
+}
+
+bool CIndex::GetStr(int ID, std::string &str) const
+{
+	str.clear();
+
+	const auto term_iter = m_I2SIndex.find(ID);
+	if( term_iter != m_I2SIndex.end() ) {
+		str = term_iter->second;
+		return true;
+	}
+
+	return false;
+
+}
+int CIndex::AddToIndex(const std::string &str)
+{
+	int id = GetID(str);
+	if( id != -1 )
+		return id;
+
+	m_S2IIndex[str] = ++m_iLastIndex;
+
+	return m_iLastIndex;
+}
+
+int CIndex::GetID(const std::string &str) const
+{
+	const auto term_iter = m_S2IIndex.find(str);
+	if( term_iter != m_S2IIndex.end() )
+		return term_iter->second;
+
+	return -1;
+}
+bool CIndex::IsStopWord(const std::string &term) const
+{
+	return IsStopWord(GetID(term));
+}
+
+bool CIndex::IsStopWord(const int term_id) const
+{
+	if( m_StopWords.find(term_id) != m_StopWords.end() )
+		return true;
+
+	return false;
+}
+
+bool CIndex::Load()
+{
+	std::fstream pFile;
+	pFile.open(m_sFileName, std::fstream::in);
+	if( !pFile.is_open() )
+		return false;
+
+	std::string str;
+	if( !std::getline(pFile, str) )
+		return false;
+
+	int curr_index = 0;
+	while( std::getline(pFile, str) ) {
+		//str = utils::converter::Utf8_to_cp1251(str.data());
+		m_S2IIndex[str] = curr_index;
+		m_I2SIndex[curr_index] = str;
+
+		curr_index++;
+	}
+
+	pFile.close();
+
+	return true;
+}
+
+bool CIndex::Save()
+{
+	std::fstream pFile;
+	pFile.open(m_sFileName, std::fstream::out);
+	if( !pFile.is_open() )
+		return false;
+
+	pFile << m_S2IIndex.size() << std::endl;
+	for( int i = 0; i < m_S2IIndex.size(); i++ )
+		pFile << m_I2SIndex[i] << std::endl;
+
+	pFile.close();
+
+	return true;
+}
+//--------------------INDEX--------------------
+
+//--------------------HISTORY--------------------
+HistoryController::HistoryController(const std::string &file_folder)
+{
+	m_FilesFolder = file_folder;/* +doc_id + ".ser";*/
+}
+
+HistoryController::~HistoryController()
+{
+	if( m_pFileIn.is_open() )
+		m_pFileIn.close();
+	if( m_pFileOut.is_open() )
+		m_pFileOut.close();
+}
+
+void HistoryController::SaveMode(const std::string &doc_id)
+{
+	std::string file_name = m_FilesFolder + doc_id + ".ser";
+	if( !m_pFileOut.is_open() ) {
+		if( m_pFileIn.is_open() )
+			m_pFileIn.close();
+
+		m_pFileOut.open(file_name, std::ios::out | std::ios::trunc | std::ios::binary);
+		if( !m_pFileOut.is_open() ) {
+			std::cout << "Error opening file to save " << file_name << std::endl;
+		}
+	}
+}
+
+void HistoryController::LoadMode(const std::string &doc_id)
+{
+	std::string file_name = m_FilesFolder + doc_id + ".ser";
+	if( !m_pFileIn.is_open() ) {
+		if( m_pFileOut.is_open() )
+			m_pFileOut.close();
+
+		m_pFileIn.open(file_name, std::ios::in | std::ios::binary);
+		if( !m_pFileIn.is_open() ) {
+			std::cout << "Error opening file to save " << file_name << std::endl;
+		}
+	}
+}
+
+void HistoryController::CloseFiles()
+{
+	if( m_pFileIn.is_open() )
+		m_pFileIn.close();
+
+	if( m_pFileOut.is_open() )
+		m_pFileOut.close();
+}
+
+void HistoryController::operator<<(const uint32_t &data)
+{
+	m_pFileOut.write((char *)&data, sizeof(uint32_t));
+}
+
+void HistoryController::operator<<(const double &data)
+{
+	m_pFileOut.write((char *)&data, sizeof(double));
+
+}
+
+void HistoryController::operator<<(const std::string &data)
+{
+	*this << (uint32_t)data.size();
+	m_pFileOut << data;
+}
+
+void HistoryController::operator>>(uint32_t &data)
+{
+	m_pFileIn.read((char *)&data, sizeof(uint32_t));
+}
+
+void HistoryController::operator>>(double &data)
+{
+	m_pFileIn.read((char *)&data, sizeof(double));
+}
+
+void HistoryController::operator>>(std::string &data)
+{
+	uint32_t str_size;
+	*this >> str_size;
+	data.resize(str_size);
+	m_pFileIn.read((char *)data.c_str(), data.size());
+}
+
+void HistoryController::flush()
+{
+	m_pFileOut.flush();
+}
+//--------------------HISTORY--------------------

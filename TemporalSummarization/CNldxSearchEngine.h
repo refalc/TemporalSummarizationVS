@@ -31,10 +31,11 @@ private:
 		bool FindTag(const std::string &text, const std::string &open_tag, const std::string &close_tag, int left_boundary, int right_boundary, std::pair<int, int> &result) const;
 		bool ProcessTrData(TSDocumentPtr document, const std::string &stype, const std::string &sword, const std::string &sweight, const std::string &scount, const std::string &spos_data) const;
 		std::vector<std::array<int, 3>> ProcessPosData(const std::string &str, int count) const;
-
+		void CutSentencesWithHDRTag(TSDocumentPtr document) const;
 	private:
 		float m_fMinDocRank;
-		std::set<std::string> m_StopWords;
+		//std::set<std::string> m_StopWords;
+		std::vector<std::string> m_StopWords;
 	};
 private:
 

@@ -11,7 +11,7 @@ public:
 	bool ConstructTimeLineCollections(const TSQuery &query, TSTimeLineCollections &collections);
 
 private:
-	bool SepareteCollectionByTime(TSDocCollection &whole_collection, TSTimeLineCollections &collections) const;
+	bool SeparateCollectionByTime(TSDocCollection &whole_collection, TSTimeLineCollections &collections) const;
 	void ComputeDocsImportance(TSTimeLineCollections &collections) const;
 	void ConstructSimilarityMatrix() const;
 	void PowerMethod() const;

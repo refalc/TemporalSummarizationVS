@@ -42,13 +42,13 @@ bool TSDocumentExtractor::ConstructTimeLineCollections(const TSQuery &query, TST
 	if( m_pDataExtractor->GetDocuments(query, whole_collection) != ReturnCode::TS_NO_ERROR )
 		return false;
 
-	if( !SepareteCollectionByTime(whole_collection, collections) )
+	if( !SeparateCollectionByTime(whole_collection, collections) )
 		return false;
 
 	return true;
 }
 
-bool TSDocumentExtractor::SepareteCollectionByTime(TSDocCollection &whole_collection, TSTimeLineCollections &collections) const
+bool TSDocumentExtractor::SeparateCollectionByTime(TSDocCollection &whole_collection, TSTimeLineCollections &collections) const
 {
 	while( whole_collection.size() > 0 ) {
 		auto doc_iter = whole_collection.begin();

@@ -67,8 +67,10 @@ std::string CNldxSearchEngine::ConstructDocListRequestString(const TSQuery &quer
 {
 	auto IndexToQueryString = [] (const TSIndex &query_index, const std::string &prefix = "", const std::string &suffix = ""){
 		std::string result;
-		for( auto iter = query_index.begin(); iter != query_index.end(); iter++ ) 
-			result += (iter == query_index.begin() ? "" : "+") + prefix + iter->GetID() + suffix;
+		for( auto iter = query_index.begin(); iter != query_index.end(); iter++ ) {
+			TSIndexItemID id = iter->GetID();
+			result += (iter == query_index.begin() ? "" : "+") + prefix + (std::string)id + suffix;
+		}
 
 		return result;
 	};
@@ -112,7 +114,47 @@ bool CNldxSearchEngine::CNldxReplyProcessor::InitParameters(const std::initializ
 
 void CNldxSearchEngine::CNldxReplyProcessor::InitStopWords()
 {
-	m_StopWords.insert("б");
+	m_StopWords.push_back("б");
+	m_StopWords.push_back("б");
+	m_StopWords.push_back("аег");
+	m_StopWords.push_back("дн");
+	m_StopWords.push_back("хг");
+	m_StopWords.push_back("й");
+	m_StopWords.push_back("мю");
+	m_StopWords.push_back("он");
+	m_StopWords.push_back("н");
+	m_StopWords.push_back("нр");
+	m_StopWords.push_back("оепед");
+	m_StopWords.push_back("опх");
+	m_StopWords.push_back("вепег");
+	m_StopWords.push_back("я");
+	m_StopWords.push_back("с");
+	m_StopWords.push_back("гю");
+	m_StopWords.push_back("мюд");
+	m_StopWords.push_back("на");
+	m_StopWords.push_back("онд");
+	m_StopWords.push_back("опн");
+	m_StopWords.push_back("дкъ");
+	m_StopWords.push_back("х");
+	m_StopWords.push_back("хкх");
+	m_StopWords.push_back("ю");
+	m_StopWords.push_back("мн");
+	m_StopWords.push_back("рюй");
+	m_StopWords.push_back("MDASH");
+	m_StopWords.push_back("RAQUO");
+	m_StopWords.push_back("LAQUO");
+	m_StopWords.push_back("бш");
+	m_StopWords.push_back("ъ");
+	m_StopWords.push_back("рш");
+	m_StopWords.push_back("лш");
+	m_StopWords.push_back("QUOT");
+	m_StopWords.push_back("NDASH");
+	m_StopWords.push_back("NBSP");
+	m_StopWords.push_back("CIR");
+	m_StopWords.push_back("CIRPAR");
+	m_StopWords.push_back("2015нккюмд");
+
+	std::sort(m_StopWords.begin(), m_StopWords.end());
 }
 
 bool CNldxSearchEngine::CNldxReplyProcessor::ProcessReply(const ReplyDataType &reply, ProcessedDataType &data) const
@@ -152,6 +194,7 @@ bool CNldxSearchEngine::CNldxReplyProcessor::ConstructDocFromString(TSDocumentPt
 	if( !ExtractIndexData(document, doc_text) )
 		return false;
 
+	CutSentencesWithHDRTag(document);
 	return true;
 }
 bool CNldxSearchEngine::CNldxReplyProcessor::ConstructDocListFromString(std::vector<std::string> &doc_list, std::string &&doc_text) const
@@ -273,6 +316,11 @@ bool CNldxSearchEngine::CNldxReplyProcessor::ProcessTrData(TSDocumentPtr documen
 	if( type == SDataType::FINAL_TYPE )
 		return true;
 
+	if( type != SDataType::WORD ) {
+		if( std::binary_search(m_StopWords.begin(), m_StopWords.end(), sword) )
+			return true;
+	}
+
 	auto all_pos_data = ProcessPosData(spos_data, std::stoi(scount));
 	switch( type ) {
 	case SDataType::SENT : {
@@ -280,7 +328,7 @@ bool CNldxSearchEngine::CNldxReplyProcessor::ProcessTrData(TSDocumentPtr documen
 			int sentence_start_pos = all_pos_data.front()[0],
 				sentence_size = all_pos_data.front()[1],
 				sentence_id = std::stoi(sword) - 1;
-			document->AddSentence(sentence_id, sentence_start_pos, sentence_start_pos + sentence_size + 1);
+			document->AddSentence(sentence_id, sentence_start_pos, sentence_start_pos + sentence_size - 1);
 		}
 	} break;
 	case SDataType::LEMMA :
@@ -297,8 +345,7 @@ bool CNldxSearchEngine::CNldxReplyProcessor::ProcessTrData(TSDocumentPtr documen
 				sentences.push_back(curr_sent);
 			}
 		}
-
-		if( !document->AddIndexItem(TSIndexItem(std::move(sword), std::stof(sweight), std::move(positions)), sentences, type) )
+		if( !document->AddIndexItem(TSIndexItem(std::move(CIndex::Instance()->AddToIndex(sword)), std::stof(sweight), std::move(positions)), sentences, type) )
 			return false;
 	} break;
 	default:
@@ -335,4 +382,41 @@ bool CNldxSearchEngine::CNldxReplyProcessor::ExtractMetaData(TSDocumentPtr docum
 	ExtractAndAddMeta(document, "KRMN_TITLE", SMetaDataType::TITLE, doc_text);
 
 	return true;
+}
+
+void CNldxSearchEngine::CNldxReplyProcessor::CutSentencesWithHDRTag(TSDocumentPtr document) const
+{
+	auto first_sentence = document->sentences_begin();
+	TSIndexItemID hdr_id = CIndex::Instance()->GetID("HDR"), cirpar_id = CIndex::Instance()->GetID("CIRPAR");
+	for( long type = (long)SDataType::LEMMA; type != (long)SDataType::FINAL_TYPE; type++ ) {
+		int hrd_last_pos = -1;
+		TSIndexPtr p_index;
+		if( first_sentence->GetIndex((SDataType)type, p_index) ) {
+			auto hdr_iter = std::find_if(p_index->begin(), p_index->end(), [&hdr_id] (const TSIndexItem &index_item) {
+				return index_item.GetID() == hdr_id;
+			});
+			if( hdr_iter != p_index->end() )
+				hrd_last_pos = hdr_iter->GetPositions().back();
+
+			if( hrd_last_pos > 0 ) {
+				auto placer_iter = p_index->begin(), runner_iter = p_index->begin();
+				while( runner_iter != p_index->end() ) {
+					if( runner_iter->GetPositions().back() > hrd_last_pos ) {
+						if( runner_iter->GetPositions().front() <= hrd_last_pos ) {
+							auto remove_iter = std::remove_if(runner_iter->GetPositions().begin(), runner_iter->GetPositions().end(), [&hrd_last_pos] (const int &pos) {
+								return pos <= hrd_last_pos;
+							});
+							runner_iter->GetPositions().erase(remove_iter, runner_iter->GetPositions().end());
+						}
+						*placer_iter = *runner_iter;
+						placer_iter++;
+					} 
+					runner_iter++;
+				}
+
+				if( runner_iter != placer_iter )
+					p_index->erase(placer_iter, p_index->end());
+			}
+		}
+	}
 }

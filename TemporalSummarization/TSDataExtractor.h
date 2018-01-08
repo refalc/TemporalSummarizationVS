@@ -8,6 +8,30 @@ enum class ReturnCode {
 	TS_DOC_SKIPPED = 2,
 };
 
+class TSDataCollection
+{
+public:
+	TSDataCollection();
+	~TSDataCollection();
+
+	bool LoadData();
+	bool SaveData() const;
+	ReturnCode LoadDocument(const std::string &doc_id, TSDocumentPtr &doc_ptr);
+	bool SaveDocument(const std::string &doc_id, TSDocumentPtr &doc_ptr);
+	bool AddToFailedList(const std::string &doc_id);
+
+
+private:
+	const std::string m_sSavedDocsPath = "../Data/Docs/";
+	const std::string m_sFailedDocsFileName = "failed_docs.txt";
+	const std::string m_sSavedDocsFileName = "saved_docs.txt";
+
+	std::set<std::string> m_SavedDocs;
+	std::set<std::string> m_FailedDocs;
+
+	mutable HistoryController m_HistoryController;
+};
+
 class TSDataExtractor
 {
 public:
@@ -26,5 +50,6 @@ private:
 	std::unique_ptr<class ISearchEngine> m_spSearchEngine;
 	class IReplyProcessor *m_pReplyProcessor;
 	int m_iMaxDocSize;
+	mutable TSDataCollection m_DataHistory;
 };
 

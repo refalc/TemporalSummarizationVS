@@ -6,6 +6,9 @@
 #include <functional>
 #include <optional>
 #include <variant>
+#include <set>
+#include "utils.h"
+
 // consts
 constexpr int W2VSize = 100;
 
@@ -48,7 +51,7 @@ using TSDocumentConstPtr = const TSDocument * ;
 using ReplyDataType = std::pair<ReplyType, std::string>;
 using ProcessedDataType = std::variant<TSDocumentPtr, std::vector<std::string>>;
 using RequestDataType = std::variant<std::string, TSQuery>;
-using IndexItemIDType = std::string;
+using IndexItemIDType = int;
 using TSIndexPtr = TSIndex * ;
 using TSIndexConstPtr = const TSIndex *;
 using TSSentencePtr = TSSentence *;
@@ -60,33 +63,44 @@ using TSQueryConstPtr = const TSQuery * ;
 class TSIndexItemID
 {
 public:
-	TSIndexItemID() : m_ID("") {}
-	TSIndexItemID(std::string &&id) : m_ID(std::move(id)) {}
-	TSIndexItemID(const std::string &id) noexcept : m_ID(id) {}
+	TSIndexItemID() : m_ID(-1) {}
+	TSIndexItemID(const std::string &id) : m_ID(CIndex::Instance()->AddToIndex(id)) {}
+	TSIndexItemID(std::string &&id) : m_ID(CIndex::Instance()->AddToIndex(id)) {}
+	TSIndexItemID(int id) noexcept : m_ID(id) {}
 	TSIndexItemID(const TSIndexItemID &other) noexcept { m_ID = other.m_ID; }
 	TSIndexItemID(TSIndexItemID &&other) noexcept { m_ID = std::move(other.m_ID); }
 
+	operator int() { return m_ID; };
+	operator std::string() {
+		std::string temp_str;
+		CIndex::Instance()->GetStr(m_ID, temp_str);
+		return temp_str;
+	}
 	inline const TSIndexItemID &operator=(const TSIndexItemID &other) noexcept { m_ID = other.m_ID; return *this; }
 	inline const TSIndexItemID &operator=(TSIndexItemID &&other) noexcept { m_ID = std::move(other.m_ID); return *this; }
 	inline bool operator==(const TSIndexItemID &other) const noexcept {
-		return m_ID.size() == other.m_ID.size() && memcmp(m_ID.data(), other.m_ID.data(), m_ID.size()) == 0;
+		return m_ID == other.m_ID;
 	}
-	inline bool operator<(const TSIndexItemID &other) const noexcept { return m_ID.compare(other.m_ID) < 0; }
+	inline bool operator<(const TSIndexItemID &other) const noexcept { return m_ID < other.m_ID; }
+
+	void SaveToHistoryController(HistoryController &history) const;
+	void LoadFromHistoryController(HistoryController &history);
 
 private:
-	std::string m_ID;
+	int m_ID;
 };
 
 class TSIndexItem
 {
 public:
-	TSIndexItem(const IndexItemIDType &id, float w, const std::vector<int> &pos_data) noexcept :
+	TSIndexItem() {}
+	TSIndexItem(const TSIndexItemID &id, float w, const std::vector<int> &pos_data) noexcept :
 		m_ID(id),
 		m_fWeight(w),
 		m_Positions(pos_data)
 	{}
 
-	TSIndexItem(IndexItemIDType &&id, float w, std::vector<int> &&pos_data) noexcept :
+	TSIndexItem(TSIndexItemID &&id, float w, std::vector<int> &&pos_data) noexcept :
 		m_ID(std::move(id)),
 		m_fWeight(w),
 		m_Positions(std::move(pos_data))
@@ -98,8 +112,8 @@ public:
 	const TSIndexItem &operator=(const TSIndexItem &other) noexcept;
 	const TSIndexItem &operator=(TSIndexItem &&other) noexcept;
 
-	inline IndexItemIDType &GetID() { return m_ID; }
-	inline const IndexItemIDType &GetID() const { return m_ID; }
+	inline TSIndexItemID &GetID() { return m_ID; }
+	inline const TSIndexItemID &GetID() const { return m_ID; }
 	inline float &GetWeight() { return m_fWeight; }
 	inline float GetWeight() const { return m_fWeight; }
 	inline std::vector<int> &GetPositions() { return m_Positions; }
@@ -107,8 +121,10 @@ public:
 	inline bool operator==(const TSIndexItem &rhs) const noexcept { return m_ID == rhs.m_ID; }
 	inline bool operator<(const TSIndexItem &rhs) const noexcept { return m_ID < rhs.m_ID; }
 
+	void SaveToHistoryController(HistoryController &history) const;
+	void LoadFromHistoryController(HistoryController &history);
 private:
-	IndexItemIDType m_ID;
+	TSIndexItemID m_ID;
 	float m_fWeight;
 	std::vector<int> m_Positions;
 };
@@ -116,6 +132,7 @@ private:
 class TSIndex
 {
 public:
+	TSIndex() {}
 	TSIndex(SDataType type) noexcept : m_eIndexType(type) {}
 	TSIndex(const TSIndex &other);
 	TSIndex(TSIndex &&other) noexcept;
@@ -149,8 +166,12 @@ public:
 	}
 	
 	float Len() const;
+	float Normalize();
 	// m_Index must be sorted !!!
 	float operator*(const TSIndex &other) const;
+
+	void SaveToHistoryController(HistoryController &history) const;
+	void LoadFromHistoryController(HistoryController &history);
 
 private:
 	SDataType m_eIndexType;
@@ -195,6 +216,9 @@ public:
 	inline std::vector<TSIndex>::const_iterator end() const { return m_Indexies.end(); }
 	float operator*(const TSIndexiesHolder &other) const;
 	float Similarity(const TSIndexiesHolder &other, SDataType type) const;
+
+	void SaveToHistoryController(HistoryController &history) const;
+	void LoadFromHistoryController(HistoryController &history);
 protected:
 	std::vector<TSIndex> m_Indexies;
 };
@@ -202,6 +226,7 @@ protected:
 class TSSentence : public TSIndexiesHolder
 {
 public:
+	TSSentence() {}
 	TSSentence(const TSDocument *doc, int sentence_num, int start_pos, int end_pos) noexcept :
 		m_pDoc(doc),
 		m_iSentenceNum(sentence_num),
@@ -214,14 +239,17 @@ public:
 	const TSSentence &operator=(const TSSentence &other);
 	const TSSentence &operator=(TSSentence &&other) noexcept;
 
+	inline void SetDocument(TSDocumentConstPtr doc_ptr) { m_pDoc = doc_ptr; }
 	inline void AddBoundaries(int start_pos, int end_pos) { m_iStartPos = start_pos; m_iEndPos = end_pos; }
 	inline bool IsCorrectBoundaries() const { return m_iStartPos >= 0 && m_iEndPos > m_iStartPos; }	
 	inline std::pair<int, int> GetBoundaries() const { return std::make_pair(m_iStartPos, m_iEndPos); }
 	inline TSDocumentConstPtr GetDocPtr() const { return m_pDoc; }
 	inline int GetSentenseNumber() const { return m_iSentenceNum; }
+	void SaveToHistoryController(HistoryController &history) const;
+	void LoadFromHistoryController(HistoryController &history);
 
 private:
-	const TSDocument *m_pDoc;
+	TSDocumentConstPtr m_pDoc;
 	int m_iSentenceNum;
 	int m_iStartPos;
 	int m_iEndPos;
@@ -248,6 +276,9 @@ public:
 		data = iter->second;
 		return true;
 	}
+	void SaveToHistoryController(HistoryController &history) const;
+	void LoadFromHistoryController(HistoryController &history);
+
 private:
 	int ConstructIntDate(const std::string &data);
 
@@ -276,6 +307,8 @@ public:
 	inline bool GetMetaData(SMetaDataType type, std::string &data) const {
 		return m_MetaData.GetData(type, data);
 	}
+	void SaveToHistoryController(HistoryController &history) const;
+	void LoadFromHistoryController(HistoryController &history);
 
 private:
 	TSDocument() noexcept {}

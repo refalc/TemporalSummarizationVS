@@ -6,6 +6,8 @@
 #include <chrono>
 #include <array>
 #include <map>
+#include <unordered_map>
+#include <set>
 
 // typedefs
 using StringHash = std::array<unsigned long long, 3>;
@@ -129,4 +131,55 @@ private:
 private:
 	static std::unique_ptr<CProfiler> m_spInstance;
 	std::map<std::string, double> m_Data;
+};
+
+class CIndex
+{
+public:
+	~CIndex();
+	static CIndex *Instance();
+	bool GetStr(int ID, std::string &str) const;
+	int AddToIndex(const std::string &str);
+	int GetID(const std::string &str) const;
+	bool IsStopWord(const std::string &term) const;
+	bool IsStopWord(const int term_id) const;
+
+private:
+	CIndex();
+	bool Load();
+	bool Save();
+
+private:
+	static std::unique_ptr<CIndex> m_spInstance;
+
+	std::unordered_map<std::string, int> m_S2IIndex;
+	std::unordered_map<int, std::string> m_I2SIndex;
+	const std::string m_sFileName = std::string("C:\\!DEV\\C++\\Diplom\\TemporalSummarization\\build-TemporalSummarization-Desktop_Qt_5_5_1_MinGW_32bit-Release\\index.idx");
+	std::set<int> m_StopWords;
+	int m_iLastIndex;
+};
+
+class HistoryController
+{
+public:
+	HistoryController(const std::string &file_folder);
+	~HistoryController();
+
+	void SaveMode(const std::string &doc_id);
+	void LoadMode(const std::string &doc_id);
+	void CloseFiles();
+	void flush();
+
+	void operator<<(const uint32_t &data);
+	void operator<<(const double &data);
+	void operator<<(const std::string &data);
+
+	void operator>>(uint32_t &data);
+	void operator>>(double &data);
+	void operator>>(std::string &data);
+
+private:
+	std::fstream m_pFileIn;
+	std::fstream m_pFileOut;
+	std::string m_FilesFolder = "";
 };

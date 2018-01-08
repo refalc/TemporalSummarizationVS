@@ -2,6 +2,18 @@
 #include <algorithm>
 #include "utils.h"
 
+void TSIndexItemID::SaveToHistoryController(HistoryController &history) const
+{
+	history << (uint32_t)m_ID;
+}
+
+void TSIndexItemID::LoadFromHistoryController(HistoryController &history)
+{
+	uint32_t id;
+	history >> id;
+	m_ID = id;
+}
+
 TSIndexItem::TSIndexItem(const TSIndexItem &other) noexcept
 {
 	*this = other;
@@ -30,6 +42,33 @@ const TSIndexItem &TSIndexItem::operator=(TSIndexItem &&other) noexcept
 	return *this;
 }
 
+void TSIndexItem::SaveToHistoryController(HistoryController &history) const
+{
+	history << (double)m_fWeight;
+	history << (uint32_t)m_Positions.size();
+	for( const auto &elem : m_Positions )
+		history << (uint32_t)elem;
+
+	m_ID.SaveToHistoryController(history);
+}
+
+void TSIndexItem::LoadFromHistoryController(HistoryController &history)
+{
+	double weight;
+	history >> weight;
+	m_fWeight = (float)weight;
+
+	uint32_t pos_size, pos;
+	history >> pos_size;
+	m_Positions.resize(pos_size);
+	for( uint32_t i = 0; i < pos_size; i++ ) {
+		history >> pos;
+		m_Positions[i] = pos;
+	}
+
+	m_ID.LoadFromHistoryController(history);
+}
+
 TSIndex::TSIndex(const TSIndex &other)
 {
 	*this = other;
@@ -56,39 +95,75 @@ const TSIndex &TSIndex::operator=(TSIndex &&other) noexcept
 	return *this;
 }
 
+void TSIndex::SaveToHistoryController(HistoryController &history) const
+{
+	history << (uint32_t)m_eIndexType;
+	history << (uint32_t)m_Index.size();
+	for( const auto &elem : m_Index )
+		elem.SaveToHistoryController(history);
+}
+
+void TSIndex::LoadFromHistoryController(HistoryController &history)
+{
+	uint32_t index_type;
+	history >> index_type;
+	m_eIndexType = (SDataType)index_type;
+
+	uint32_t index_size;
+	history >> index_size;
+	m_Index.resize(index_size);
+	for( uint32_t i = 0; i < index_size; i++ )
+		m_Index[i].LoadFromHistoryController(history);
+
+}
+
 std::string TSIndex::GetString() const
 {
 	std::string str;
-	for( auto iter = m_Index.begin(); iter != m_Index.end(); iter++ )
-		str += (iter == m_Index.begin() ? "" : " " ) + iter->GetID();
+	for( auto iter = m_Index.begin(); iter != m_Index.end(); iter++ ) {
+		TSIndexItemID id = iter->GetID();
+		str += (iter == m_Index.begin() ? "" : " ") + (std::string)id;
+	}
 	return str;
 }
 
 std::string TSIndex::GetOrderedString() const
 {
 	std::vector<std::string> ordered_words;
+	std::string temp_str;
 	for( auto iter = m_Index.begin(); iter != m_Index.end(); iter++ ) {
 		for( const auto &pos : iter->GetPositions() ) {
 			if( pos >= ordered_words.size() )
 				ordered_words.resize(pos * 2);
-			ordered_words[pos] = iter->GetID();
+
+			TSIndexItemID id = iter->GetID();
+			ordered_words[pos] = id;
 		}
 	}
+	ordered_words.erase(std::remove(ordered_words.begin(), ordered_words.end(), ""), ordered_words.end());
 
 	std::string str;
-	for( auto iter = ordered_words.begin(); iter != ordered_words.end(); iter++ ) {
+	for( auto iter = ordered_words.begin(); iter != ordered_words.end(); iter++ ) 
 		str += (iter == ordered_words.begin() ? "" : " ") + *iter;
-	}
 	return str;
 }
 
 float TSIndex::Len() const
 {
 	float len2 = 0.f;
-	for( const auto elem : m_Index )
+	for( const auto &elem : m_Index )
 		len2 += elem.GetWeight() * elem.GetWeight();
 
 	return sqrt(len2);
+}
+
+float TSIndex::Normalize()
+{
+	float len = Len();
+	for( auto &elem : m_Index )
+		elem.GetWeight() /= len;
+
+	return len;
 }
 
 float TSIndex::operator*(const TSIndex &other) const
@@ -101,6 +176,8 @@ float TSIndex::operator*(const TSIndex &other) const
 	while( curr_iter != m_Index.end() && other_iter != other.end() ) {
 		if( *curr_iter == *other_iter ) {
 			score += curr_iter->GetWeight() * other_iter->GetWeight();
+			curr_iter++;
+			other_iter++;
 		} else if( *curr_iter < *other_iter ) {
 			curr_iter++;
 		} else {
@@ -131,6 +208,22 @@ TSIndexiesHolder &TSIndexiesHolder::operator=(TSIndexiesHolder &&other) noexcept
 {
 	m_Indexies = std::move(other.m_Indexies);
 	return *this;
+}
+
+void TSIndexiesHolder::SaveToHistoryController(HistoryController &history) const
+{
+	history << (uint32_t)m_Indexies.size();
+	for( const auto elem : m_Indexies )
+		elem.SaveToHistoryController(history);
+}
+
+void TSIndexiesHolder::LoadFromHistoryController(HistoryController &history)
+{
+	uint32_t indexies_size;
+	history >> indexies_size;
+	m_Indexies.resize(indexies_size);
+	for( uint32_t i = 0; i < indexies_size; i++ )
+		m_Indexies[i].LoadFromHistoryController(history);
 }
 
 bool TSIndexiesHolder::GetIndex(SDataType type, TSIndex &index) const {
@@ -226,6 +319,29 @@ const TSSentence &TSSentence::operator=(TSSentence &&other) noexcept
 	return *this;
 }
 
+void TSSentence::SaveToHistoryController(HistoryController &history) const
+{
+	history << (uint32_t)m_iSentenceNum;
+	history << (uint32_t)m_iStartPos;
+	history << (uint32_t)m_iEndPos;
+	TSIndexiesHolder::SaveToHistoryController(history);
+}
+
+void TSSentence::LoadFromHistoryController(HistoryController &history)
+{
+	uint32_t temp_uint;
+	history >> temp_uint;
+	m_iSentenceNum = temp_uint;
+
+	history >> temp_uint;
+	m_iStartPos = temp_uint;
+
+	history >> temp_uint;
+	m_iEndPos = temp_uint;
+
+	TSIndexiesHolder::LoadFromHistoryController(history);
+}
+
 TSMetaData::TSMetaData(const TSMetaData &other)
 {
 	*this = other;
@@ -250,7 +366,28 @@ const TSMetaData &TSMetaData::operator=(TSMetaData &&other) noexcept
 	return *this;
 }
 
+void TSMetaData::SaveToHistoryController(HistoryController &history) const
+{
+	history << (uint32_t)m_Data.size();
+	for( const auto &map_pair : m_Data ) {
+		history << (uint32_t)map_pair.first;
+		history << map_pair.second;
+	}
+}
 
+void TSMetaData::LoadFromHistoryController(HistoryController &history)
+{
+	uint32_t map_size;
+	history >> map_size;
+	for( uint32_t i = 0; i < map_size; i++ ) {
+		uint32_t map_pair_first;
+		std::string map_pair_second;
+		history >> map_pair_first;
+		history >> map_pair_second;
+		m_Data.emplace_hint(m_Data.end(), (SMetaDataType)map_pair_first, map_pair_second);
+	}
+		
+}
 /*TSDocument::TSDocument(const TSDocument &other)
 {
 	*this = other;
@@ -281,6 +418,33 @@ const TSDocument &TSDocument::operator=(TSDocument &&other) noexcept
 	return *this;
 }*/
 
+void TSDocument::SaveToHistoryController(HistoryController &history) const
+{
+	history << m_DocID;
+	history << (uint32_t)m_Sentences.size();
+	for( const auto &sent : m_Sentences )
+		sent.SaveToHistoryController(history);
+
+	m_MetaData.SaveToHistoryController(history);
+	TSIndexiesHolder::SaveToHistoryController(history);
+
+}
+void TSDocument::LoadFromHistoryController(HistoryController &history)
+{
+	history >> m_DocID;
+
+	uint32_t sentences_size;
+	history >> sentences_size;
+	m_Sentences.resize(sentences_size);
+	for( uint32_t i = 0; i < sentences_size; i++ ) {
+		m_Sentences[i].LoadFromHistoryController(history);
+		m_Sentences[i].SetDocument(this);
+	}
+
+	m_MetaData.LoadFromHistoryController(history);
+	TSIndexiesHolder::LoadFromHistoryController(history);
+}
+
 bool TSDocument::InitDocID(const std::string &doc_id)
 {
 	if( !m_DocID.empty() )
@@ -292,7 +456,7 @@ bool TSDocument::InitDocID(const std::string &doc_id)
 
 bool TSDocument::AddSentence(int sentence_num, int start_pos, int end_pos)
 {
-	if( sentence_num < 0 || start_pos < 0 || end_pos <= start_pos )
+	if( sentence_num < 0 || start_pos < 0 || end_pos < start_pos )
 		return false;
 
 	if( sentence_num >= m_Sentences.size() ) {
@@ -404,6 +568,14 @@ bool TSTimeLineQueries::AddQuery(int time_anchor, TSQuery &&query)
 	auto queries_iter = m_Queries.lower_bound(time_anchor);
 	if( queries_iter != m_Queries.end() && !m_Queries.key_comp()(time_anchor, queries_iter->first) )
 		return false;
+
+	for( long type = (long)SDataType::LEMMA; type != (long)SDataType::FINAL_TYPE; type++ ) {
+		TSIndexPtr p_index;
+		if( query.GetIndex((SDataType)type, p_index) ) {
+			std::sort(p_index->begin(), p_index->end());
+			p_index->Normalize();
+		}
+	}
 
 	m_Queries.emplace_hint(queries_iter, time_anchor, std::move(query));
 	return true;

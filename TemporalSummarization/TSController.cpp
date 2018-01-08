@@ -63,8 +63,9 @@ bool TSController::InitParameters(const Params &params, const std::string &answe
 	m_iMaxDailyAnswerSize
 	m_fLambda
 	m_fSimThreshold
+	m_fMinMMR
 	*/
-	auto solver_params = { (float)m_Params.m_TempMaxDailyAnswerSize, (float)m_Params.m_PLambda, /*todo add new param or delete*/0.8f };
+	auto solver_params = { (float)m_Params.m_TempMaxDailyAnswerSize, (float)m_Params.m_PLambda, /*todo add new param or delete*/0.8f, (float)m_Params.m_PMinMMR };
 	if( !m_spSolver->InitParameters(solver_params) )
 		return false;
 
@@ -132,6 +133,8 @@ bool TSController::RunQuery(const std::string &doc_id) const
 		return false;
 	}
 
+	if( !SaveTemporalSummaryInFile(temporal_summary, queries, doc_id) )
+		return false;
 
 	return true;
 }
@@ -139,7 +142,7 @@ bool TSController::RunQuery(const std::string &doc_id) const
 bool TSController::SaveTemporalSummaryInFile(const std::vector<std::pair<float, TSSentenceConstPtr>> &temporal_summary, const TSTimeLineQueries &queries, const std::string &init_doc_id) const
 {
 	std::fstream pFile;
-	pFile.open("..//Data//answer.xml", std::fstream::app);
+	pFile.open(m_AnswerPath, std::fstream::app);
 	if( !pFile.is_open() )
 		return false;
 
@@ -204,7 +207,7 @@ bool TSController::CleanAnswerFile() const
 	m_iStoryIDCounter = 0;
 
 	std::fstream pFile;
-	pFile.open("..//Data//answer.xml", std::fstream::out);
+	pFile.open(m_AnswerPath, std::fstream::out);
 	if( !pFile.is_open() )
 		return false;
 
