@@ -80,9 +80,17 @@ private:
 class TSIndexItem
 {
 public:
-	TSIndexItem(const IndexItemIDType &id, float w) noexcept :
+	TSIndexItem(const IndexItemIDType &id, float w, const std::vector<int> &pos_data) noexcept :
 		m_ID(id),
-		m_fWeight(w) {}
+		m_fWeight(w),
+		m_Positions(pos_data)
+	{}
+
+	TSIndexItem(IndexItemIDType &&id, float w, std::vector<int> &&pos_data) noexcept :
+		m_ID(std::move(id)),
+		m_fWeight(w),
+		m_Positions(std::move(pos_data))
+	{}
 
 	TSIndexItem(const TSIndexItem &other) noexcept;
 	TSIndexItem(TSIndexItem &&other) noexcept;
@@ -94,12 +102,15 @@ public:
 	inline const IndexItemIDType &GetID() const { return m_ID; }
 	inline float &GetWeight() { return m_fWeight; }
 	inline float GetWeight() const { return m_fWeight; }
+	inline std::vector<int> &GetPositions() { return m_Positions; }
+	inline const std::vector<int> &GetPositions() const { return m_Positions; }
 	inline bool operator==(const TSIndexItem &rhs) const noexcept { return m_ID == rhs.m_ID; }
 	inline bool operator<(const TSIndexItem &rhs) const noexcept { return m_ID < rhs.m_ID; }
 
 private:
 	IndexItemIDType m_ID;
 	float m_fWeight;
+	std::vector<int> m_Positions;
 };
 
 class TSIndex
@@ -120,6 +131,7 @@ public:
 
 	inline SDataType GetType() const { return m_eIndexType; }
 	std::string GetString() const;
+	std::string GetOrderedString() const;
 	// index iteration 
 	// std notation
 	inline std::vector<TSIndexItem>::iterator begin() { return m_Index.begin(); }
@@ -148,7 +160,14 @@ private:
 class TSIndexiesHolder
 {
 public:
-	bool InitIndex(SDataType type);
+	TSIndexiesHolder() noexcept {}
+	TSIndexiesHolder(const TSIndexiesHolder &other) noexcept;
+	TSIndexiesHolder(TSIndexiesHolder &&other) noexcept;
+
+	TSIndexiesHolder &operator=(const TSIndexiesHolder &other) noexcept;
+	TSIndexiesHolder &operator=(TSIndexiesHolder &&other) noexcept;
+
+	bool InitIndex(SDataType type); 
 	bool GetIndex(SDataType type, TSIndex &index) const;
 	bool GetIndex(SDataType type, TSIndexConstPtr &p_index) const;
 	bool GetIndex(SDataType type, TSIndexPtr &p_index);
@@ -197,6 +216,7 @@ public:
 
 	inline void AddBoundaries(int start_pos, int end_pos) { m_iStartPos = start_pos; m_iEndPos = end_pos; }
 	inline bool IsCorrectBoundaries() const { return m_iStartPos >= 0 && m_iEndPos > m_iStartPos; }	
+	inline std::pair<int, int> GetBoundaries() const { return std::make_pair(m_iStartPos, m_iEndPos); }
 	inline TSDocumentConstPtr GetDocPtr() const { return m_pDoc; }
 	inline int GetSentenseNumber() const { return m_iSentenceNum; }
 
@@ -307,6 +327,11 @@ class TSTimeLineQueries
 public:
 	bool AddQuery(int time_anchor, TSQuery &&query);
 	bool GetQuery(int time_anchor, TSQueryConstPtr &query) const;
+
+	inline std::map<int, TSQuery>::iterator begin() { return m_Queries.begin(); }
+	inline std::map<int, TSQuery>::iterator end() { return m_Queries.end(); }
+	inline std::map<int, TSQuery>::const_iterator begin() const { return m_Queries.begin(); }
+	inline std::map<int, TSQuery>::const_iterator end() const { return m_Queries.end(); }
 private:
 	std::map<int, TSQuery> m_Queries;
 };

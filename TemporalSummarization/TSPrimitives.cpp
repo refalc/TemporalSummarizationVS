@@ -16,6 +16,7 @@ const TSIndexItem &TSIndexItem::operator=(const TSIndexItem &other) noexcept
 {
 	m_fWeight = other.m_fWeight;
 	m_ID = other.m_ID;
+	m_Positions = other.m_Positions;
 
 	return *this;
 }
@@ -24,6 +25,7 @@ const TSIndexItem &TSIndexItem::operator=(TSIndexItem &&other) noexcept
 {
 	m_fWeight = std::move(other.m_fWeight);
 	m_ID = std::move(other.m_ID);
+	m_Positions = std::move(other.m_Positions);
 
 	return *this;
 }
@@ -62,6 +64,24 @@ std::string TSIndex::GetString() const
 	return str;
 }
 
+std::string TSIndex::GetOrderedString() const
+{
+	std::vector<std::string> ordered_words;
+	for( auto iter = m_Index.begin(); iter != m_Index.end(); iter++ ) {
+		for( const auto &pos : iter->GetPositions() ) {
+			if( pos >= ordered_words.size() )
+				ordered_words.resize(pos * 2);
+			ordered_words[pos] = iter->GetID();
+		}
+	}
+
+	std::string str;
+	for( auto iter = ordered_words.begin(); iter != ordered_words.end(); iter++ ) {
+		str += (iter == ordered_words.begin() ? "" : " ") + *iter;
+	}
+	return str;
+}
+
 float TSIndex::Len() const
 {
 	float len2 = 0.f;
@@ -89,6 +109,28 @@ float TSIndex::operator*(const TSIndex &other) const
 	}
 
 	return score / (Len() * other.Len());
+}
+
+TSIndexiesHolder::TSIndexiesHolder(const TSIndexiesHolder &other) noexcept
+{
+	m_Indexies = other.m_Indexies;
+}
+
+TSIndexiesHolder::TSIndexiesHolder(TSIndexiesHolder &&other) noexcept
+{
+	m_Indexies = std::move(other.m_Indexies);
+}
+
+TSIndexiesHolder &TSIndexiesHolder::operator=(const TSIndexiesHolder &other) noexcept
+{
+	m_Indexies = other.m_Indexies;
+	return *this;
+}
+
+TSIndexiesHolder &TSIndexiesHolder::operator=(TSIndexiesHolder &&other) noexcept
+{
+	m_Indexies = std::move(other.m_Indexies);
+	return *this;
 }
 
 bool TSIndexiesHolder::GetIndex(SDataType type, TSIndex &index) const {
@@ -271,7 +313,16 @@ bool TSDocument::AddIndexItem(TSIndexItem &&index_item, const std::vector<int> &
 
 	// fill sentences
 	for( const auto &sent_id : sentences ) {
-		if( !m_Sentences[sent_id].AddIndexItemToIndex(type, index_item) )
+		TSIndexItem sent_index_item = index_item;
+
+		std::vector<int> &positions = sent_index_item.GetPositions();
+		auto boundaries = m_Sentences[sent_id].GetBoundaries();
+		auto remove_if_iter = std::remove_if(positions.begin(), positions.end(), [boundaries](const int &pos) {
+			return pos < boundaries.first || pos > boundaries.second;
+		});
+		positions.erase(remove_if_iter, positions.end());
+
+		if( !m_Sentences[sent_id].AddIndexItemToIndex(type, std::move(sent_index_item)) )
 			return false;
 	}
 

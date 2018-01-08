@@ -286,17 +286,19 @@ bool CNldxSearchEngine::CNldxReplyProcessor::ProcessTrData(TSDocumentPtr documen
 	case SDataType::LEMMA :
 	case SDataType::TERMIN :
 	case SDataType::WORD : {
-		std::vector<int> sentences;
+		std::vector<int> sentences, positions;
+		positions.reserve(all_pos_data.size());
 		int curr_sent = -1;
 		for( const auto &pos_data : all_pos_data ) {
 			int sentence_id = pos_data[2];
+			positions.push_back(pos_data[0]);
 			if( curr_sent != sentence_id ) {
 				curr_sent = sentence_id;
 				sentences.push_back(curr_sent);
 			}
 		}
 
-		if( !document->AddIndexItem(TSIndexItem(sword, std::stof(sweight)), sentences, type) )
+		if( !document->AddIndexItem(TSIndexItem(std::move(sword), std::stof(sweight), std::move(positions)), sentences, type) )
 			return false;
 	} break;
 	default:
