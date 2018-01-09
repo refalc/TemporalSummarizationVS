@@ -55,7 +55,7 @@ bool TSController::InitParameters(const Params &params, const std::string &answe
 	m_fSoftOr
 	m_fMinDocRank
 	*/
-	auto doc_extractor_params = { (float)m_Params.m_PDocCount, (float)m_Params.m_PSoftOr, /*todo add new param or delete*/0.f };
+	auto doc_extractor_params = { (float)m_Params.m_PDocCount, (float)m_Params.m_PSoftOr, /*todo add new param or delete*/0.f, (float)m_Params.m_DIMinLinkScore, (float)m_Params. };
 	if( !m_spDocExtractor->InitParameters(doc_extractor_params) )
 		return false;
 

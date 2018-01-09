@@ -302,6 +302,11 @@ public:
 	inline std::vector<TSSentence>::const_iterator sentences_begin() const { return m_Sentences.begin(); }
 	inline std::vector<TSSentence>::const_iterator sentences_end() const { return m_Sentences.end(); }
 
+	inline std::vector<TSSentence>::reverse_iterator sentences_rbegin() { return m_Sentences.rbegin(); }
+	inline std::vector<TSSentence>::reverse_iterator sentences_rend() { return m_Sentences.rend(); }
+	inline std::vector<TSSentence>::const_reverse_iterator sentences_rbegin() const { return m_Sentences.rbegin(); }
+	inline std::vector<TSSentence>::const_reverse_iterator sentences_rend() const { return m_Sentences.rend(); }
+
 	inline const std::string &GetDocID() const { return m_DocID; };
 	inline bool IsEmpty() const { return m_Indexies.empty(); };
 	inline bool GetMetaData(SMetaDataType type, std::string &data) const {
@@ -344,7 +349,7 @@ class TSTimeLineCollections
 {
 public:
 	void AddDocNode(std::map<std::string, TSDocument>::node_type &&node, int time);
-
+	void InitDocumentsImportanceData(std::map<std::string, float> &&doc_to_importance, std::vector<std::string> &&top_docs);
 	// iterate docs
 	inline std::map<int, TSDocCollection>::iterator begin() { return m_Collections.begin(); }
 	inline std::map<int, TSDocCollection>::iterator end() { return m_Collections.end(); }
@@ -353,6 +358,8 @@ public:
 
 private:
 	std::map<int, TSDocCollection> m_Collections;
+	std::vector<std::string> m_TopDocuments;
+	std::map<std::string, float> m_DocIDToImportance;
 };
 
 class TSTimeLineQueries

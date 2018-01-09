@@ -514,10 +514,11 @@ int TSMetaData::ConstructIntDate(const std::string &data)
 	std::string day = data.substr(0, 2);
 	std::string month = data.substr(3, 2);
 	std::string year = data.substr(6, 4);
-	if( !utils::IsStringIntNumber(day) || !utils::IsStringIntNumber(month) || !utils::IsStringIntNumber(year) )
+	std::string hour = data.substr(11, 2);
+	if( !utils::IsStringIntNumber(day) || !utils::IsStringIntNumber(month) || !utils::IsStringIntNumber(year) || !utils::IsStringIntNumber(hour) )
 		return -1;
 
-	return std::stoi(day) + std::stoi(month) * 31 + std::stoi(year) * 365;
+	return std::stoi(hour) + std::stoi(day) * 24 + std::stoi(month) * 24 * 31 + std::stoi(year) * 24 * 365;
 }
 
 TSDocumentPtr TSDocCollection::AllocateDocument()
@@ -561,6 +562,12 @@ void TSTimeLineCollections::AddDocNode(std::map<std::string, TSDocument>::node_t
 		iter = m_Collections.emplace_hint(iter, time, TSDocCollection());
 
 	iter->second.SetNode(std::move(node));
+}
+
+void TSTimeLineCollections::InitDocumentsImportanceData(std::map<std::string, float> &&doc_to_importance, std::vector<std::string> &&top_docs)
+{
+	m_TopDocuments = std::move(top_docs);
+	m_DocIDToImportance = std::move(doc_to_importance);
 }
 
 bool TSTimeLineQueries::AddQuery(int time_anchor, TSQuery &&query)
