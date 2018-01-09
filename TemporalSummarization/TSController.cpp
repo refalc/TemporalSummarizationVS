@@ -45,8 +45,8 @@ bool TSController::InitParameters(const Params &params, const std::string &answe
 	m_iResultLemmaSize
 	m_iResultTerminsSize
 	*/
-	auto query_constructor_params = { (float)m_Params.m_PKeepL, (float)m_Params.m_PKeepT, (float)m_Params.m_QEDocCount, /*todo add new param*/(float)m_Params.m_PSoftOr, (float)m_Params.m_QEMinDocRank,
-									  (float)m_Params.m_QETopLemms, /*todo add new param*/(float)m_Params.m_PKeepT, (float)m_Params.m_QEQuerrySize, /*todo add new param*/(float)m_Params.m_PKeepT };
+	auto query_constructor_params = { (float)m_Params.m_PKeepL, (float)m_Params.m_PKeepT, (float)m_Params.m_QEDocCount, (float)m_Params.m_QESoftOr, (float)m_Params.m_QEMinDocRank,
+									  (float)m_Params.m_QETopLemms, (float)m_Params.m_QETopTermins, (float)m_Params.m_QEQuerrySize, /*todo add new param*/(float)m_Params.m_PKeepT, (float)m_Params.m_QEDEInitQuerrySize };
 	if( !m_spQueryConstructor->InitParameters(query_constructor_params) )
 		return false;
 
@@ -74,18 +74,27 @@ bool TSController::InitParameters(const Params &params, const std::string &answe
 
 bool TSController::RunQueries(const std::vector<std::string> &queries) const
 {
+	CLogger::Instance()->WriteToLog("INFO : Start run queries, size = " + std::to_string(queries.size()));
 	if( !CleanAnswerFile() )
 		return false;
 
 	for( const auto &doc_id : queries )
-		if( !RunQuery(doc_id) )
-			return false;
+		if( !RunQuery(doc_id) ) {
+			// save empty results
+			std::vector<std::pair<float, TSSentenceConstPtr>> temporal_summary;
+			TSTimeLineQueries queries;
+			if( !SaveTemporalSummaryInFile(temporal_summary, queries, doc_id) ) {
+				CLogger::Instance()->WriteToLog("ERROR : error while save empty temporal summary, doc_id = " + doc_id);
+				return false;
+			}
+		}
 
 	return true;
 }
 
 bool TSController::RunQuery(const std::string &doc_id) const
 {
+	CLogger::Instance()->WriteToLog("INFO : Start run query, id = " + doc_id);
 	if( !m_spDataExtractor || !m_spQueryConstructor || !m_spDocExtractor || !m_spSolver )
 		return false;
 
@@ -96,18 +105,10 @@ bool TSController::RunQuery(const std::string &doc_id) const
 	}
 
 	if( m_Params.m_PQuerryEx ) {
-		if( !m_spQueryConstructor->QueryExtensionProcess(query_first_level, query_second_level) ) {
-			CLogger::Instance()->WriteToLog("ERROR : error while query extension 1l query process");
+		if( !m_spQueryConstructor->FullQueryExtensionProcess(query_first_level, m_Params.m_QEDoubleExtension, query) ) {
+			CLogger::Instance()->WriteToLog("ERROR : error while query extension process. Query will");
 			return false;
 		}
-		if( m_Params.m_QEDoubleExtension ) {
-			if( !m_spQueryConstructor->QueryExtensionProcess(query_second_level, query_third_level) ) {
-				CLogger::Instance()->WriteToLog("ERROR : error while query construction 2l query process");
-				return false;
-			}
-			query = query_third_level;
-		} else
-			query = query_second_level;
 	} else
 		query = query_first_level;
 
@@ -133,8 +134,10 @@ bool TSController::RunQuery(const std::string &doc_id) const
 		return false;
 	}
 
-	if( !SaveTemporalSummaryInFile(temporal_summary, queries, doc_id) )
+	if( !SaveTemporalSummaryInFile(temporal_summary, queries, doc_id) ) {
+		CLogger::Instance()->WriteToLog("ERROR : error while save temporal summary, doc_id = " + doc_id);
 		return false;
+	}
 
 	return true;
 }
@@ -158,12 +161,11 @@ bool TSController::SaveTemporalSummaryInFile(const std::vector<std::pair<float, 
 		pFile << lemma_index_ptr->GetString() << std::endl;
 		pFile << "</lemmas>" << std::endl;
 
-		if( !query_pair.second.GetIndex(SDataType::TERMIN, termin_index_ptr) )
-			return false;
-		pFile << "<termins>" << std::endl;
-		pFile << termin_index_ptr->GetString() << std::endl;
-		pFile << "</termins>" << std::endl;
-
+		if( query_pair.second.GetIndex(SDataType::TERMIN, termin_index_ptr) ) {
+			pFile << "<termins>" << std::endl;
+			pFile << termin_index_ptr->GetString() << std::endl;
+			pFile << "</termins>" << std::endl;
+		}
 		pFile << "</query>" << std::endl;
 	}
 	pFile << "</queries>" << std::endl;

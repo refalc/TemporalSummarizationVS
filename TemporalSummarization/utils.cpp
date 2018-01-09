@@ -367,8 +367,6 @@ bool CArgReader::ReadConfig(std::string path_to_config)
 	cur_params.m_MaxAnswerSize = 15;            //todo task_param
 	cur_params.m_PMinSentSize = 4;              //todo hardcode
 	cur_params.m_PMinMMR = 0.0001;              //todo hardcode
-	cur_params.m_PMaxSentSize = 50;             //todo hardcode
-	cur_params.m_PLambdaTemp = 0;               //todo del
 	cur_params.m_PowerMethodEps = 0.0000001;    //todo hardcode
 	cur_params.m_SentSimThreshold = 0.8;
 
@@ -378,9 +376,13 @@ bool CArgReader::ReadConfig(std::string path_to_config)
 		return false;
 	if (!GetDataFromTag(content, "QETopLemms", cur_params.m_QETopLemms))
 		return false;
+	if( !GetDataFromTag(content, "QETopTermins", cur_params.m_QETopTermins) )
+		return false;
 	if (!GetDataFromTag(content, "QEDocCount", cur_params.m_QEDocCount))
 		return false;
 	if (!GetDataFromTag(content, "PSoftOr", cur_params.m_PSoftOr))
+		return false;
+	if( !GetDataFromTag(content, "QESoftOr", cur_params.m_QESoftOr) )
 		return false;
 	if (!GetDataFromTag(content, "DIMinLinkScore", cur_params.m_DIMinLinkScore))
 		return false;

@@ -190,8 +190,10 @@ bool TSDataCollection::LoadData()
 {
 	std::fstream pFile;
 	pFile.open(m_sSavedDocsPath + m_sSavedDocsFileName, std::fstream::in);
-	if( !pFile.is_open() )
+	if( !pFile.is_open() ) {
+		CLogger::Instance()->WriteToLog("ERROR : while open " + m_sSavedDocsPath + m_sSavedDocsFileName);
 		return false;
+	}
 
 	std::string str;
 	while( std::getline(pFile, str) ) {
@@ -201,8 +203,10 @@ bool TSDataCollection::LoadData()
 	pFile.close();
 
 	pFile.open(m_sSavedDocsPath + m_sFailedDocsFileName, std::fstream::in);
-	if( !pFile.is_open() )
+	if( !pFile.is_open() ) {
+		CLogger::Instance()->WriteToLog("ERROR : while open " + m_sSavedDocsPath + m_sFailedDocsFileName);
 		return false;
+	}
 
 	while( std::getline(pFile, str) ) {
 		m_FailedDocs.emplace_hint(m_FailedDocs.end(), str);

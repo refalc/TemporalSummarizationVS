@@ -37,7 +37,9 @@ struct Params
 	int m_PDocCount;
 	int m_QEQuerrySize;
 	int m_QETopLemms;
+	int m_QETopTermins;
 	int m_QEDocCount;
+	double m_QESoftOr;
 	double m_PSoftOr;
 	double m_DIMinLinkScore;
 	int m_PKeepL;
@@ -46,10 +48,7 @@ struct Params
 	int m_PMinSentSize;
 	double m_PMinMMR;
 	double m_QEMinDocRank;
-	double m_PMaxSentSize;
-	double m_PLambdaTemp;
 	bool m_PTemporalMode;
-	bool m_PMultiQuerry;
 	bool m_DocImportance;
 	bool m_PQuerryEx;
 	double m_DIAlpha;

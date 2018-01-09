@@ -14,11 +14,13 @@ public:
 private:
 	bool GetTopSentence(std::vector<TSSentenceConstPtr> &collection, const TSQuery &query, const std::map<float, TSSentenceConstPtr> &extracted_sentences, const std::map<float, TSSentenceConstPtr> &extracted_sentences_today, std::pair<float, TSSentenceConstPtr> &sentence_pair) const;
 	float RankOneSentence(const TSSentenceConstPtr &sentence, const TSQuery &query, const std::map<float, TSSentenceConstPtr> &extracted_sentences, const std::map<float, TSSentenceConstPtr> &extracted_sentences_today) const;
-
+	bool CreateSentencesFromCollection(const TSDocCollection &collection, std::vector<TSSentenceConstPtr> &sentences) const;
 private:
 	int m_iMaxDailyAnswerSize;
 	float m_fSimThreshold;
 	float m_fLambda;
 	float m_fMinMMR;
+	int m_iMinSentenceSize;
+	int m_iMaxSentenceSize;
 };
 

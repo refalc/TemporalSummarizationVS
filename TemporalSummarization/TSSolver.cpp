@@ -8,7 +8,9 @@
 TSSolver::TSSolver() :
 	m_iMaxDailyAnswerSize(10),
 	m_fLambda(0.85f),
-	m_fSimThreshold(0.8f)
+	m_fSimThreshold(0.8f),
+	m_iMinSentenceSize(4),
+	m_iMaxSentenceSize(35)
 {
 }
 
@@ -59,16 +61,9 @@ bool TSSolver::GetTemporalSummary(const TSTimeLineCollections &collections, cons
 			return false;
 		}
 
-		int all_sentences_size = 0;
-		for( const auto &doc_pair : day_collection.second )
-			all_sentences_size += (int)doc_pair.second.sentences_size();
-
 		std::vector<TSSentenceConstPtr> sentences;
-		sentences.reserve(all_sentences_size);
-
-		for( auto doc_iter = day_collection.second.begin(); doc_iter != day_collection.second.end(); doc_iter++ )
-			for( auto sent_iter = doc_iter->second.sentences_begin(); sent_iter != doc_iter->second.sentences_end(); sent_iter++ )
-				sentences.push_back(&(*sent_iter));
+		if( !CreateSentencesFromCollection(day_collection.second, sentences) )
+			return false;
 
 		while( today_extacted.size() < m_iMaxDailyAnswerSize && GetTopSentence(sentences, *today_query, all_extracted, today_extacted, sentence_pair) ) {
 			today_extacted.insert(std::move(sentence_pair));
@@ -86,6 +81,35 @@ bool TSSolver::GetTemporalSummary(const TSTimeLineCollections &collections, cons
 
 	auto t1_e = std::chrono::high_resolution_clock::now();
 	CProfiler::Instance()->AddDuration("slv", (double)std::chrono::duration_cast<std::chrono::microseconds>(t1_e - t1_s).count() / 1e6);
+	return true;
+}
+
+bool TSSolver::CreateSentencesFromCollection(const TSDocCollection &collection, std::vector<TSSentenceConstPtr> &sentences) const
+{
+	int all_sentences_size = 0;
+	for( const auto &doc_pair : collection )
+		all_sentences_size += (int)doc_pair.second.sentences_size();
+
+	sentences.reserve(all_sentences_size);
+
+	for( auto doc_iter = collection.begin(); doc_iter != collection.end(); doc_iter++ ) {
+		for( auto sent_iter = doc_iter->second.sentences_begin(); sent_iter != doc_iter->second.sentences_end(); sent_iter++ ) {
+			TSIndexConstPtr p_index;
+			if( !sent_iter->GetIndex(SDataType::LEMMA, p_index) )
+				continue;
+
+			int sentence_lemm_size = 0;
+			for( const auto &lemm_iter : *p_index )
+				sentence_lemm_size += (int)lemm_iter.GetPositions().size();
+
+			if( sentence_lemm_size >= m_iMinSentenceSize && sentence_lemm_size <= m_iMaxSentenceSize )
+				sentences.push_back(&(*sent_iter));
+		}
+	}
+
+	if( sentences.empty() )
+		return false;
+
 	return true;
 }
 

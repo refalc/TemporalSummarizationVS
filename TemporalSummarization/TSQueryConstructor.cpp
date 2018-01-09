@@ -12,7 +12,7 @@ TSQueryConstructor::~TSQueryConstructor()
 
 bool TSQueryConstructor::InitParameters(const std::initializer_list<float> &params)
 {
-	constexpr int parameters_size = 8;
+	constexpr int parameters_size = 9;
 	if( params.size() < parameters_size )
 		return false;
 
@@ -26,7 +26,8 @@ bool TSQueryConstructor::InitParameters(const std::initializer_list<float> &para
 	int top_lemm_for_qe = (int)params.begin()[5],
 		top_termin_for_qe = (int)params.begin()[6],
 		result_lemma_size = (int)params.begin()[7],
-		result_termins_size = (int)params.begin()[8];
+		result_termins_size = (int)params.begin()[8],
+		double_extension_query_cut_size = (int)params.begin()[9];
 
 	if( lemms_size < 1 || terms_size < 0 || doc_count <= 0 ||
 		soft_or >= 1 || soft_or < 0 ||
@@ -45,6 +46,7 @@ bool TSQueryConstructor::InitParameters(const std::initializer_list<float> &para
 	m_iTopTerminsForQEProcess = top_termin_for_qe;
 	m_iResultLemmaSize = result_lemma_size;
 	m_iResultTerminsSize = result_termins_size;
+	m_iLemmsSizeForDEProcess = double_extension_query_cut_size;
 
 	return true;
 }
@@ -95,34 +97,68 @@ bool TSQueryConstructor::QueryExtensionProcess(const TSQuery &query, TSQuery &ex
 	TSDocCollection collection;
 	if( m_pDataExtractor->GetDocuments(query, collection) != ReturnCode::TS_NO_ERROR )
 		return false;
-	
-	extended_query.clear();
-	extended_query.InitIndex(SDataType::LEMMA);
-	extended_query.InitIndex(SDataType::TERMIN);
 
-	TSIndexPtr query_lemma_index_ptr, query_termins_index_ptr;
-	if( !extended_query.GetIndex(SDataType::LEMMA, query_lemma_index_ptr) || !extended_query.GetIndex(SDataType::TERMIN, query_termins_index_ptr) )
+	if( collection.size() == 0 )
 		return false;
 
-	query_lemma_index_ptr->reserve(collection.size() * m_iTopLemmsForQEProcess);
-	query_termins_index_ptr->reserve(collection.size() * m_iTopTerminsForQEProcess);
+	extended_query.clear();
+	if( !ProcessCollection(collection, SDataType::LEMMA, m_iTopLemmsForQEProcess, m_iResultLemmaSize, extended_query) )
+		return false;
+
+	if( m_iTopTerminsForQEProcess > 0 && m_iResultTerminsSize > 0 )
+		if( !ProcessCollection(collection, SDataType::TERMIN, m_iTopTerminsForQEProcess, m_iResultTerminsSize, extended_query) )
+			return false;
+
+	return true;
+}
+
+bool TSQueryConstructor::FullQueryExtensionProcess(const TSQuery &query, bool double_extension, TSQuery &extended_query) const
+{
+	TSQuery query_second_level, query_third_level;
+	if( !QueryExtensionProcess(query, query_second_level) ) {
+		CLogger::Instance()->WriteToLog("ERROR : error while query extension 1l query process");
+		return false;
+	}
+	if( double_extension ) {
+		TSIndexPtr p_index;
+		if( !query_second_level.GetIndex(SDataType::LEMMA, p_index) )
+			return false;
+
+		p_index->erase(p_index->begin() + std::min((int)p_index->size(), m_iLemmsSizeForDEProcess), p_index->end());
+
+		if( !QueryExtensionProcess(query_second_level, query_third_level) ) {
+			CLogger::Instance()->WriteToLog("ERROR : error while query construction 2l query process");
+			return false;
+		}
+		extended_query = query_third_level;
+	}
+	else
+		extended_query = query_second_level;
+
+	return true;
+}
+
+bool TSQueryConstructor::ProcessCollection(const TSDocCollection &collection, SDataType type, int top_elements, int result_elements, TSQuery &query) const
+{
+	if( !query.InitIndex(type) )
+		return false;
+
+	TSIndexPtr query_index_ptr;
+	if( !query.GetIndex(type, query_index_ptr) )
+		return false;
+
+	query_index_ptr->reserve(collection.size() * top_elements);
 
 	for( auto iter = collection.begin(); iter != collection.end(); iter++ ) {
 		TSIndexConstPtr p_index;
-		if( !iter->second.GetIndex(SDataType::LEMMA, p_index) )
+		if( !iter->second.GetIndex(type, p_index) )
 			return false;
 
-		FillCollectionStatistic(p_index, m_iTopLemmsForQEProcess, *query_lemma_index_ptr);
-
-		if( !iter->second.GetIndex(SDataType::TERMIN, p_index) )
-			return false;
-
-		FillCollectionStatistic(p_index, m_iTopTerminsForQEProcess, *query_termins_index_ptr);
+		FillCollectionStatistic(p_index, top_elements, *query_index_ptr);
 	}
 
-	CombineStatistics(*query_lemma_index_ptr, m_iResultLemmaSize);
-	CombineStatistics(*query_termins_index_ptr, m_iResultTerminsSize);
-
+	CombineStatistics(*query_index_ptr, result_elements, (int)collection.size());
+	
 	return true;
 }
 
@@ -139,7 +175,7 @@ void TSQueryConstructor::FillCollectionStatistic(TSIndexConstPtr p_index, int nu
 		statistic_index.AddToIndex(*(p_index->begin() + i));
 }
 
-void TSQueryConstructor::CombineStatistics(TSIndex &statistic_index, int query_size) const
+void TSQueryConstructor::CombineStatistics(TSIndex &statistic_index, int query_size, int collection_size) const
 {
 	std::sort(statistic_index.begin(), statistic_index.end());
 
@@ -156,12 +192,12 @@ void TSQueryConstructor::CombineStatistics(TSIndex &statistic_index, int query_s
 		if( iter_runner == statistic_index.end() )
 			break;
 
-		iter_placer->GetWeight() = (float)cur_item_count / all_item_count;
+		iter_placer->GetWeight() = (float)cur_item_count / collection_size;
 		iter_placer++;
 		*iter_placer = *iter_runner;
 		cur_item_count = 1;
 	}
-	iter_placer->GetWeight() = (float)cur_item_count / all_item_count;
+	iter_placer->GetWeight() = (float)cur_item_count / collection_size;
 	iter_placer++;
 
 	int uniq_query_size = (int)std::distance(statistic_index.begin(), iter_placer);

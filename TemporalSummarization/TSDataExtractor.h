@@ -22,7 +22,7 @@ public:
 
 
 private:
-	const std::string m_sSavedDocsPath = "../Data/Docs/";
+	const std::string m_sSavedDocsPath = "C:/!DEV/C++/TemporalSummarization/TemporalSummarizationVS/Data/Docs/";
 	const std::string m_sFailedDocsFileName = "failed_docs.txt";
 	const std::string m_sSavedDocsFileName = "saved_docs.txt";
 
