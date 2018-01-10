@@ -396,6 +396,8 @@ void TSMetaData::LoadFromHistoryController(HistoryController &history)
 
 void TSDocument::SaveToHistoryController(HistoryController &history) const
 {
+	CLogger::Instance()->WriteToLog("INFO : Saving file : " + m_DocID);
+
 	history << m_DocID;
 	history << (uint32_t)m_Sentences.size();
 	for( const auto &sent : m_Sentences )

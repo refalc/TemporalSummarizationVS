@@ -91,11 +91,9 @@ bool TSQueryConstructor::QueryConstructionProcess(const std::string &doc_id, TSQ
 bool TSQueryConstructor::QueryExtensionProcess(const TSQuery &query, TSQuery &extended_query) const
 {
 	auto init_param = std::initializer_list<float>{ (float)m_iDocCountForQEProcess, m_fSoftOrForQEProcess, m_fMinDocRankForQEProcess };
-	if( m_pDataExtractor->InitParameters(init_param) != ReturnCode::TS_NO_ERROR )
-		return false;
-
+	
 	TSDocCollection collection;
-	if( m_pDataExtractor->GetDocuments(query, collection) != ReturnCode::TS_NO_ERROR )
+	if( m_pDataExtractor->GetDocuments(query, init_param, collection) != ReturnCode::TS_NO_ERROR )
 		return false;
 
 	if( collection.size() == 0 )

@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <set>
 #include <chrono>
+#include <omp.h>  
 // typedefs
 using StringHash = std::array<unsigned long long, 3>;
 
@@ -70,18 +71,17 @@ public:
 	template<typename T>
 	void WriteToLog(const T &str)
 	{
+		if( !m_pFile.is_open() )
+			return;
 #pragma omp critical (logger_write)  
 		{
-			if( !m_pFile.is_open() )
-				return;
-
 			time_t cur_time;
 			auto time_point = std::chrono::system_clock::now();
 			cur_time = std::chrono::system_clock::to_time_t(time_point);
 			std::array<char, 26> buffer;
 			ctime_s(buffer.data(), buffer.size(), &cur_time);
 
-			m_pFile << std::string(buffer.begin(), buffer.begin() + 24) + " " + std::string(str) << std::endl;
+			m_pFile << std::string(buffer.begin(), buffer.begin() + 24) + " | thread " + std::to_string(omp_get_thread_num()) + " | " + std::string(str) << std::endl;
 		}
 	}
 

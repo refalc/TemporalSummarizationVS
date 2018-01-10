@@ -50,11 +50,10 @@ bool TSDocumentExtractor::InitParameters(const std::initializer_list<float> &par
 bool TSDocumentExtractor::ConstructTimeLineCollections(const TSQuery &query, TSTimeLineCollections &collections)
 {
 	auto probe = CProfiler::CProfilerProbe("constr_timeline_collections");
-	if( m_pDataExtractor->InitParameters({ (float)m_iDocCount, m_fSoftOr, m_fMinDocRank }) != ReturnCode::TS_NO_ERROR )
-		return false;
 
 	TSDocCollection whole_collection;
-	if( m_pDataExtractor->GetDocuments(query, whole_collection) != ReturnCode::TS_NO_ERROR )
+	auto init_params = { (float)m_iDocCount, m_fSoftOr, m_fMinDocRank };
+	if( m_pDataExtractor->GetDocuments(query, init_params, whole_collection) != ReturnCode::TS_NO_ERROR )
 		return false;
 
 	if( m_bTemporalMode ) {
@@ -139,7 +138,7 @@ void TSDocumentExtractor::ComputeDocsImportance(const TSDocCollection &whole_col
 	for( const auto doc_repr : docs_representations ) {
 		doc_to_importance.insert(doc_repr.GetPair());
 		if( doc_repr.GetImportance() > m_fDocumentImportanceBoundary ) {
-			std::cout << doc_repr.GetDocPtr()->GetDocID() << " " << doc_repr.GetImportance() << std::endl;
+			//std::cout << doc_repr.GetDocPtr()->GetDocID() << " " << doc_repr.GetImportance() << std::endl;
 			CLogger::Instance()->WriteToLog("INFO : topdoc = " + doc_repr.GetDocPtr()->GetDocID() + " i = " + std::to_string(doc_repr.GetImportance()));
 			top_docs.push_back(doc_repr.GetDocPtr()->GetDocID());
 		}

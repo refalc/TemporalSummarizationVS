@@ -39,38 +39,49 @@ ReturnCode TSDataExtractor::GetDocument(const std::string &doc_id, TSDocumentPtr
 		return ReturnCode::TS_GENERAL_ERROR;
 	}
 
-	ReturnCode result = m_DataHistory.LoadDocument(doc_id, document);
-	if( result == ReturnCode::TS_DOC_SKIPPED ) {
-		//CLogger::Instance()->WriteToLog("SKIPPED: Doc " + doc_id);
-		return ReturnCode::TS_DOC_SKIPPED;
-	} else if( result == ReturnCode::TS_GENERAL_ERROR ) {
-#pragma omp critical (data_extractor_get_doc) 
+	ReturnCode load_result = m_DataHistory.LoadDocument(doc_id, document), recv_result = ReturnCode::TS_GENERAL_ERROR;
+	if( load_result == ReturnCode::TS_GENERAL_ERROR ) {
+#pragma omp critical (data_extractor_get) 
 		{
-			auto probe = CProfiler::CProfilerProbe("recv_doc");
-			RequestDataType request = doc_id;
-			ReplyDataType reply;
-			if( !m_spSearchEngine->SendRequest(request, reply) ) {
-				CLogger::Instance()->WriteToLog("ERROR: Fail while sending request to search engine");
-				return ReturnCode::TS_GENERAL_ERROR;
-			}
-
-			if( reply.second.size() > m_iMaxDocSize ) {
-				//CLogger::Instance()->WriteToLog("SKIPPED: Doc " + doc_id + " , size = " + std::to_string(reply.second.size()));
-				m_DataHistory.AddToFailedList(doc_id);
-				return ReturnCode::TS_DOC_SKIPPED;
-			}
-
-			ProcessedDataType data = document;
-			if( !m_pReplyProcessor->ProcessReply(reply, data) ) {
-				CLogger::Instance()->WriteToLog("ERROR: Fail while process reply from search engine");
-				return ReturnCode::TS_GENERAL_ERROR;
-			}
-
-			document->InitDocID(doc_id);
-			SortDocIndexies(document);
-			m_DataHistory.SaveDocument(doc_id, document);
+			load_result = m_DataHistory.LoadDocument(doc_id, document);
+			if( load_result == ReturnCode::TS_GENERAL_ERROR ) {
+				recv_result = RecvDocument(doc_id, document);
+			} 
 		}
+	} 
+
+	if( load_result == ReturnCode::TS_NO_ERROR || load_result == ReturnCode::TS_DOC_SKIPPED )
+		return load_result;
+
+	if( load_result == ReturnCode::TS_GENERAL_ERROR )
+		return recv_result;
+}
+
+ReturnCode TSDataExtractor::RecvDocument(const std::string &doc_id, TSDocumentPtr document) const
+{
+	auto probe = CProfiler::CProfilerProbe("recv_doc");
+	RequestDataType request = doc_id;
+	ReplyDataType reply;
+	if( !m_spSearchEngine->SendRequest(request, reply) ) {
+		CLogger::Instance()->WriteToLog("ERROR: Fail while sending request to search engine");
+		return ReturnCode::TS_GENERAL_ERROR;
 	}
+
+	if( reply.second.size() > m_iMaxDocSize ) {
+		//CLogger::Instance()->WriteToLog("SKIPPED: Doc " + doc_id + " , size = " + std::to_string(reply.second.size()));
+		m_DataHistory.AddToFailedList(doc_id);
+		return ReturnCode::TS_DOC_SKIPPED;
+	}
+
+	ProcessedDataType data = document;
+	if( !m_pReplyProcessor->ProcessReply(reply, data) ) {
+		CLogger::Instance()->WriteToLog("ERROR: Fail while process reply from search engine");
+		return ReturnCode::TS_GENERAL_ERROR;
+	}
+
+	document->InitDocID(doc_id);
+	SortDocIndexies(document);
+	m_DataHistory.SaveDocument(doc_id, document);
 
 	return ReturnCode::TS_NO_ERROR;
 }
@@ -94,30 +105,29 @@ void TSDataExtractor::SortDocIndexies(TSDocumentPtr document) const
 	}
 }
 
-bool TSDataExtractor::GetDocumentList(const TSQuery &query, std::vector<std::string> &doc_list) const
+bool TSDataExtractor::GetDocumentList(const TSQuery &query, const std::initializer_list<float> &params, std::vector<std::string> &doc_list) const
 {
-#pragma omp critical (data_extractor_get_doc_list) 
-	{
-		RequestDataType request = query;
-		ReplyDataType reply;
-		if( !m_spSearchEngine->SendRequest(request, reply) ) {
-			CLogger::Instance()->WriteToLog("ERROR: Fail while sending request to search engine");
-			return false;
-		}
+	if( InitParameters(params) != ReturnCode::TS_NO_ERROR )
+		return false;
 
-		ProcessedDataType data;
-		if( !m_pReplyProcessor->ProcessReply(reply, data) ) {
-			CLogger::Instance()->WriteToLog("ERROR: Fail while process reply from search engine");
-			return false;
-		}
-
-		doc_list = std::move(std::get<std::vector<std::string> >(data));
-		return true;
+	RequestDataType request = query;
+	ReplyDataType reply;
+	if( !m_spSearchEngine->SendRequest(request, reply) ) {
+		CLogger::Instance()->WriteToLog("ERROR: Fail while sending request to search engine");
+		return false;
 	}
-	
+
+	ProcessedDataType data;
+	if( !m_pReplyProcessor->ProcessReply(reply, data) ) {
+		CLogger::Instance()->WriteToLog("ERROR: Fail while process reply from search engine");
+		return false;
+	}
+
+	doc_list = std::move(std::get<std::vector<std::string> >(data));
+	return true;
 }
 
-ReturnCode TSDataExtractor::GetDocuments(const TSQuery &query, TSDocCollection &collection) const
+ReturnCode TSDataExtractor::GetDocuments(const TSQuery &query, const std::initializer_list<float> &params, TSDocCollection &collection) const
 {
 	auto probe = CProfiler::CProfilerProbe("get_docs");
 	if( !m_spSearchEngine || !m_pReplyProcessor ) {
@@ -126,7 +136,13 @@ ReturnCode TSDataExtractor::GetDocuments(const TSQuery &query, TSDocCollection &
 	}
 
 	std::vector<std::string> doc_list;
-	if( !GetDocumentList(query, doc_list) ) {
+
+	bool result;
+#pragma omp critical (data_extractor_get) 
+	{
+		result = GetDocumentList(query, params, doc_list);
+	}
+	if( !result ) {
 		CLogger::Instance()->WriteToLog("ERROR: Fail while getting document list on query");
 		return ReturnCode::TS_GENERAL_ERROR;
 	}
@@ -134,8 +150,8 @@ ReturnCode TSDataExtractor::GetDocuments(const TSQuery &query, TSDocCollection &
 	CLogger::Instance()->WriteToLog("Process " + std::to_string(doc_list.size()) + " docs");
 	int counter = 0;
 	for( const auto &doc_id : doc_list ) {
-		if( counter++ % 10 )
-			std::cout << "\r\t\t\t\t\r" << counter * 100.f / doc_list.size();
+		//if( counter++ % 10 )
+			//std::cout << "\r\t\t\t\t\r" << counter * 100.f / doc_list.size();
 
 		TSDocumentPtr doc = collection.AllocateDocument();
 		ReturnCode res = GetDocument(doc_id, doc);
@@ -180,15 +196,18 @@ ReturnCode TSDataCollection::LoadDocument(const std::string &doc_id, TSDocumentP
 
 bool TSDataCollection::SaveDocument(const std::string &doc_id, TSDocumentPtr &doc_ptr)
 {
-	if( m_SavedDocs.find(doc_id) != m_SavedDocs.end() || m_FailedDocs.find(doc_id) != m_FailedDocs.end() )
-		return true;
-
-	HistoryController hist_controller(m_sSavedDocsPath);
-	hist_controller.SaveMode(doc_id);
-	doc_ptr->SaveToHistoryController(hist_controller);
-	hist_controller.CloseFiles();
-	m_SavedDocs.insert(doc_id);
-
+	if( m_SavedDocs.find(doc_id) == m_SavedDocs.end() && m_FailedDocs.find(doc_id) == m_FailedDocs.end() ) {
+#pragma omp critical (data_collection_save_doc) 
+		{
+		if( m_SavedDocs.find(doc_id) == m_SavedDocs.end() && m_FailedDocs.find(doc_id) == m_FailedDocs.end() ) {
+			HistoryController hist_controller(m_sSavedDocsPath);
+			hist_controller.SaveMode(doc_id);
+			doc_ptr->SaveToHistoryController(hist_controller);
+			hist_controller.CloseFiles();
+			m_SavedDocs.insert(doc_id);
+		}
+		}
+	}
 	return true;
 }
 

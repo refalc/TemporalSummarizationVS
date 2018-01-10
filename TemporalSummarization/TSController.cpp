@@ -84,17 +84,25 @@ bool TSController::RunQueries(const std::vector<std::string> &queries) const
 	if( !CleanAnswerFile() )
 		return false;
 
-	for( const auto &doc_id : queries )
-		if( !RunQuery(doc_id) ) {
+#pragma omp parallel
+	{
+#pragma omp  for
+	for( int i = 0; i < queries.size(); i++ )
+		if( !RunQuery(queries[i]) ) {
 			// save empty results
 			std::vector<std::pair<float, TSSentenceConstPtr>> temporal_summary;
-			TSTimeLineQueries queries;
-			if( !SaveTemporalSummaryInFile(temporal_summary, queries, doc_id) ) {
-				CLogger::Instance()->WriteToLog("ERROR : error while save empty temporal summary, doc_id = " + doc_id);
-				return false;
+			TSTimeLineQueries ts_queries;
+
+			bool save_result = false;
+#pragma omp critical (save_temporal_summary)
+			{
+				save_result = SaveTemporalSummaryInFile(temporal_summary, ts_queries, queries[i]);
+			}
+			if( !save_result ) {
+				CLogger::Instance()->WriteToLog("ERROR : error while save empty temporal summary, doc_id = " + queries[i]);
 			}
 		}
-
+	}
 	return true;
 }
 
@@ -133,7 +141,13 @@ bool TSController::RunQuery(const std::string &doc_id) const
 		return false;
 	}
 
-	if( !SaveTemporalSummaryInFile(temporal_summary, queries, doc_id) ) {
+	bool save_result = false;
+#pragma omp critical (save_temporal_summary)
+	{
+		save_result = SaveTemporalSummaryInFile(temporal_summary, queries, doc_id);
+	}
+
+	if( !save_result ) {
 		CLogger::Instance()->WriteToLog("ERROR : error while save temporal summary, doc_id = " + doc_id);
 		return false;
 	}

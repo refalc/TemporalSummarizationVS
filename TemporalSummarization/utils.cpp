@@ -496,9 +496,10 @@ CProfiler *CProfiler::Instance()
 {
 	if( !m_spInstance ) {
 #pragma omp critical (profiler_instance) 
-		// todo parallelism
-		if( !m_spInstance ) {
-			m_spInstance.reset(new CProfiler());
+		{
+			if( !m_spInstance ) {
+				m_spInstance.reset(new CProfiler());
+			}
 		}
 	}
 	return m_spInstance.get();
@@ -612,16 +613,18 @@ bool CIndex::GetStr(int ID, std::string &str) const
 }
 int CIndex::AddToIndex(const std::string &str)
 {
+	int index = GetID(str);
+	if( index == -1 ) {
 #pragma omp critical (index_add_to_index) 
-	{
-		int id = GetID(str);
-		if( id != -1 )
-			return id;
-
-		m_S2IIndex[str] = ++m_iLastIndex;
-
-		return m_iLastIndex;
+		{
+			index = GetID(str);
+			if( index == -1) {
+				m_S2IIndex[str] = ++m_iLastIndex;
+				index = m_iLastIndex;
+			}
+		}
 	}
+	return index;
 }
 
 int CIndex::GetID(const std::string &str) const

@@ -38,10 +38,11 @@ public:
 
 	ReturnCode InitParameters(const std::initializer_list<float> &params) const;
 	ReturnCode GetDocument(const std::string &doc_id, TSDocumentPtr document) const;
-	ReturnCode GetDocuments(const TSQuery &query, TSDocCollection &collection) const;
+	ReturnCode GetDocuments(const TSQuery &query, const std::initializer_list<float> &params, TSDocCollection &collection) const;
 
 private:
-	bool GetDocumentList(const TSQuery &query, std::vector<std::string> &doc_list) const;
+	bool GetDocumentList(const TSQuery &query, const std::initializer_list<float> &params, std::vector<std::string> &doc_list) const;
+	ReturnCode RecvDocument(const std::string &doc_id, TSDocumentPtr document) const;
 	void SortDocIndexies(TSDocumentPtr document) const;
 
 private:
