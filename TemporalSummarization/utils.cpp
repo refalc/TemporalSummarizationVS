@@ -458,10 +458,11 @@ std::unique_ptr<CLogger> CLogger::m_spInstance = nullptr;
 CLogger *CLogger::Instance()
 {
 	if (!m_spInstance) {
-		// mutex for parallelism
-		// lock
-		if (!m_spInstance) {
-			m_spInstance.reset(new CLogger());
+#pragma omp critical (logger_instance) 
+		{
+			if( !m_spInstance ) {
+				m_spInstance.reset(new CLogger());
+			}
 		}
 	}
 
@@ -493,20 +494,25 @@ CProfiler::CProfiler()
 
 CProfiler *CProfiler::Instance()
 {
-	// todo parallelism
 	if( !m_spInstance ) {
-		m_spInstance.reset(new CProfiler());
+#pragma omp critical (profiler_instance) 
+		// todo parallelism
+		if( !m_spInstance ) {
+			m_spInstance.reset(new CProfiler());
+		}
 	}
-
 	return m_spInstance.get();
 }
 
 void CProfiler::AddDuration(const std::string &mark, double duration)
 {
-	if( m_Data.find(mark) == m_Data.end() )
-		m_Data.emplace(mark, duration);
-	else
-		m_Data[mark] += duration;
+#pragma omp critical (profiler_add_duration) 
+	{
+		if( m_Data.find(mark) == m_Data.end() )
+			m_Data.emplace(mark, duration);
+		else
+			m_Data[mark] += duration;
+	}
 }
 
 void CProfiler::DataToLog()
@@ -521,11 +527,14 @@ void CProfiler::DataToLog()
 std::unique_ptr<CIndex> CIndex::m_spInstance = nullptr;
 CIndex *CIndex::Instance()
 {
-	// todo parallelism
 	if( !m_spInstance ) {
-		m_spInstance.reset(new CIndex());
+#pragma omp critical (index_instance) 
+		{
+			if( !m_spInstance ) {
+				m_spInstance.reset(new CIndex());
+			}
+		}
 	}
-
 	return m_spInstance.get();
 }
 
@@ -603,13 +612,16 @@ bool CIndex::GetStr(int ID, std::string &str) const
 }
 int CIndex::AddToIndex(const std::string &str)
 {
-	int id = GetID(str);
-	if( id != -1 )
-		return id;
+#pragma omp critical (index_add_to_index) 
+	{
+		int id = GetID(str);
+		if( id != -1 )
+			return id;
 
-	m_S2IIndex[str] = ++m_iLastIndex;
+		m_S2IIndex[str] = ++m_iLastIndex;
 
-	return m_iLastIndex;
+		return m_iLastIndex;
+	}
 }
 
 int CIndex::GetID(const std::string &str) const

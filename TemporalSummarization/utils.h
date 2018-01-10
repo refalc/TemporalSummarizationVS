@@ -70,17 +70,19 @@ public:
 	template<typename T>
 	void WriteToLog(const T &str)
 	{
-		//todo parallelism
-		if (!m_pFile.is_open())
-			return;
+#pragma omp critical (logger_write)  
+		{
+			if( !m_pFile.is_open() )
+				return;
 
-		time_t cur_time;
-		auto time_point = std::chrono::system_clock::now();
-		cur_time = std::chrono::system_clock::to_time_t(time_point);
-		std::array<char, 26> buffer;
-		ctime_s(buffer.data(), buffer.size(), &cur_time);
+			time_t cur_time;
+			auto time_point = std::chrono::system_clock::now();
+			cur_time = std::chrono::system_clock::to_time_t(time_point);
+			std::array<char, 26> buffer;
+			ctime_s(buffer.data(), buffer.size(), &cur_time);
 
-		m_pFile << std::string(buffer.begin(), buffer.begin() + 24) + " " + std::string(str) << std::endl;
+			m_pFile << std::string(buffer.begin(), buffer.begin() + 24) + " " + std::string(str) << std::endl;
+		}
 	}
 
 private:
