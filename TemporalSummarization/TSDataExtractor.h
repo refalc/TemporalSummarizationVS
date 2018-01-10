@@ -28,8 +28,6 @@ private:
 
 	std::set<std::string> m_SavedDocs;
 	std::set<std::string> m_FailedDocs;
-
-	mutable HistoryController m_HistoryController;
 };
 
 class TSDataExtractor

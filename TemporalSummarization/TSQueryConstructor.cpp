@@ -114,10 +114,15 @@ bool TSQueryConstructor::QueryExtensionProcess(const TSQuery &query, TSQuery &ex
 
 bool TSQueryConstructor::FullQueryExtensionProcess(const TSQuery &query, bool double_extension, TSQuery &extended_query) const
 {
+	auto probe = CProfiler::CProfilerProbe("query_constr");
 	TSQuery query_second_level, query_third_level;
 	if( !QueryExtensionProcess(query, query_second_level) ) {
-		CLogger::Instance()->WriteToLog("ERROR : error while query extension 1l query process");
-		return false;
+		TSIndexConstPtr p_index;
+		query.GetIndex(SDataType::LEMMA, p_index);
+		CLogger::Instance()->WriteToLog("ERROR : error while query extension 1l query process : " + p_index->GetString());
+		
+		extended_query = query;
+		return true;
 	}
 	if( double_extension ) {
 		TSIndexPtr p_index;
@@ -127,9 +132,13 @@ bool TSQueryConstructor::FullQueryExtensionProcess(const TSQuery &query, bool do
 		p_index->erase(p_index->begin() + std::min((int)p_index->size(), m_iLemmsSizeForDEProcess), p_index->end());
 
 		if( !QueryExtensionProcess(query_second_level, query_third_level) ) {
-			CLogger::Instance()->WriteToLog("ERROR : error while query construction 2l query process");
-			return false;
-		}
+			TSIndexConstPtr p_index;
+			query_second_level.GetIndex(SDataType::LEMMA, p_index);
+			CLogger::Instance()->WriteToLog("ERROR : error while query construction 2l query process : " + p_index->GetString());
+			
+			extended_query = query_second_level;
+			return true;
+		} 
 		extended_query = query_third_level;
 	}
 	else

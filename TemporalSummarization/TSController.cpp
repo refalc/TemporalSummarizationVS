@@ -45,8 +45,10 @@ bool TSController::InitParameters(const Params &params, const std::string &answe
 	m_iResultLemmaSize
 	m_iResultTerminsSize
 	*/
-	auto query_constructor_params = { (float)m_Params.m_PKeepL, (float)m_Params.m_PKeepT, (float)m_Params.m_QEDocCount, (float)m_Params.m_QESoftOr, (float)m_Params.m_QEMinDocRank,
-									  (float)m_Params.m_QETopLemms, (float)m_Params.m_QETopTermins, (float)m_Params.m_QEQuerrySize, /*todo add new param*/(float)m_Params.m_PKeepT, (float)m_Params.m_QEDEInitQuerrySize };
+	auto query_constructor_params = { (float)m_Params.m_PKeepL, (float)m_Params.m_PKeepT, (float)m_Params.m_QEDocCount,
+		                              (float)m_Params.m_QESoftOr, (float)m_Params.m_QEMinDocRank, (float)m_Params.m_QETopLemms,
+		                              (float)m_Params.m_QETopTermins, (float)m_Params.m_QEQuerrySize,
+		        /*todo add new param*/(float)m_Params.m_PKeepT, (float)m_Params.m_QEDEInitQuerrySize };
 	if( !m_spQueryConstructor->InitParameters(query_constructor_params) )
 		return false;
 
@@ -55,7 +57,9 @@ bool TSController::InitParameters(const Params &params, const std::string &answe
 	m_fSoftOr
 	m_fMinDocRank
 	*/
-	auto doc_extractor_params = { (float)m_Params.m_PDocCount, (float)m_Params.m_PSoftOr, /*todo add new param or delete*/0.f, (float)m_Params.m_DIMinLinkScore, (float)m_Params. };
+	auto doc_extractor_params = { (float)m_Params.m_PDocCount, (float)m_Params.m_PSoftOr, /*todo add new param or delete*/0.f,
+		                          (float)m_Params.m_DIMinLinkScore, (float)m_Params.m_DIPowerMethodDFactor, (float)m_Params.m_DIDocBoundary,
+		                          (float)m_Params.m_DocImportance, (float)m_Params.m_PTemporalMode };
 	if( !m_spDocExtractor->InitParameters(doc_extractor_params) )
 		return false;
 
@@ -65,7 +69,8 @@ bool TSController::InitParameters(const Params &params, const std::string &answe
 	m_fSimThreshold
 	m_fMinMMR
 	*/
-	auto solver_params = { (float)m_Params.m_TempMaxDailyAnswerSize, (float)m_Params.m_PLambda, /*todo add new param or delete*/0.8f, (float)m_Params.m_PMinMMR };
+	auto solver_params = { (float)m_Params.m_TempMaxDailyAnswerSize, (float)m_Params.m_PLambda, /*todo add new param or delete*/0.8f,
+		                   (float)m_Params.m_PMinMMR, (float)m_Params.m_DocImportance, (float)m_Params.m_DIAlpha };
 	if( !m_spSolver->InitParameters(solver_params) )
 		return false;
 
@@ -74,6 +79,7 @@ bool TSController::InitParameters(const Params &params, const std::string &answe
 
 bool TSController::RunQueries(const std::vector<std::string> &queries) const
 {
+	auto probe = CProfiler::CProfilerProbe("run_queries");
 	CLogger::Instance()->WriteToLog("INFO : Start run queries, size = " + std::to_string(queries.size()));
 	if( !CleanAnswerFile() )
 		return false;
@@ -119,14 +125,7 @@ bool TSController::RunQuery(const std::string &doc_id) const
 	}
 
 	TSTimeLineQueries queries;
-	if( m_Params.m_DocImportance ) {
-		// todo algo
-		CLogger::Instance()->WriteToLog("ERROR : m_DocImportance not implemented yet");
-		return false;
-	} else if( !queries.AddQuery(0, std::move(query)) ) {
-		CLogger::Instance()->WriteToLog("ERROR : error while adding query");
-		return false;
-	}
+	ConstructTimeLinesQueries(std::move(query), doc_id, collection, queries);
 
 	std::vector<std::pair<float, TSSentenceConstPtr>> temporal_summary;
 	if( !m_spSolver->GetTemporalSummary(collection, queries, m_iTemporalSummarySize, temporal_summary) ) {
@@ -215,4 +214,63 @@ bool TSController::CleanAnswerFile() const
 
 	pFile.close();
 	return true;
+}
+
+bool TSController::ConstructTimeLinesQueries(TSQuery &&init_query, const std::string &init_doc_id, const TSTimeLineCollections &collections, TSTimeLineQueries &queries) const
+{
+	int query_int_date = GetQueryDate(init_doc_id, collections);
+	if( !queries.AddQuery(query_int_date, std::move(init_query)) )
+		return false;
+
+	if( m_Params.m_DocImportance ) {
+		for( const auto &doc_id : collections.GetTopDocs() ) {
+			TSQuery query_first_level, query_second_level, query_third_level, query;
+			if( !m_spQueryConstructor->QueryConstructionProcess(doc_id, query_first_level) ) {
+				CLogger::Instance()->WriteToLog("ERROR : error while query construction process");
+				return false;
+			}
+
+			if( m_Params.m_PQuerryEx ) {
+				if( !m_spQueryConstructor->FullQueryExtensionProcess(query_first_level, m_Params.m_QEDoubleExtension, query) ) {
+					CLogger::Instance()->WriteToLog("ERROR : error while query extension process. Query will");
+					return false;
+				}
+			}
+			else
+				query = query_first_level;
+
+			int query_int_date = GetQueryDate(doc_id, collections);
+			if( !queries.AddQuery(query_int_date, std::move(query)) )
+				return false;
+		}
+	} 
+
+	return true;
+}
+
+int TSController::GetQueryDate(const std::string &init_doc_id, const TSTimeLineCollections &collections) const
+{
+	int query_int_date = 0;
+	for( const auto &day_collection : collections ) {
+		for( const auto &doc : day_collection.second ) {
+			if( doc.first == init_doc_id ) {
+				std::string date;
+				if( doc.second.GetMetaData(SMetaDataType::INT_DATE, date) )
+					query_int_date = std::stoi(date);
+			}
+		}
+	}
+
+	if( query_int_date == 0 ) {
+		TSDocCollection temp_collection;
+		TSDocumentPtr doc_ptr = temp_collection.AllocateDocument();
+		if( m_spDataExtractor->GetDocument(init_doc_id, doc_ptr) == ReturnCode::TS_NO_ERROR ) {
+			std::string date;
+			if( doc_ptr->GetMetaData(SMetaDataType::INT_DATE, date) )
+				query_int_date = std::stoi(date);
+		}
+		temp_collection.CommitAllocatedDocument();
+	}
+
+	return query_int_date;
 }

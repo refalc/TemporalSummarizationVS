@@ -8,7 +8,7 @@
 #include <map>
 #include <unordered_map>
 #include <set>
-
+#include <chrono>
 // typedefs
 using StringHash = std::array<unsigned long long, 3>;
 
@@ -120,6 +120,21 @@ private:
 class CProfiler
 {
 public:
+	class CProfilerProbe
+	{
+	public:
+		CProfilerProbe(const std::string &mark) : m_Mark(mark), m_CreationTime(std::chrono::high_resolution_clock::now()) {}
+		~CProfilerProbe() 
+		{
+			double duration = (double)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - m_CreationTime).count() / 1e6;
+			CProfiler::Instance()->AddDuration(m_Mark, duration);
+		}
+
+	private:
+		std::string m_Mark;
+		std::chrono::time_point<std::chrono::steady_clock> m_CreationTime;
+	};
+
 	~CProfiler();
 	static CProfiler *Instance();
 	void AddDuration(const std::string &mark, double duration);

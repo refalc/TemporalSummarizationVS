@@ -386,37 +386,13 @@ void TSMetaData::LoadFromHistoryController(HistoryController &history)
 		history >> map_pair_second;
 		m_Data.emplace_hint(m_Data.end(), (SMetaDataType)map_pair_first, map_pair_second);
 	}
+
+	// temporal
+	std::string date;
+	if( GetData(SMetaDataType::DATE, date) )
+		AddData(SMetaDataType::DATE, std::move(date));
 		
 }
-/*TSDocument::TSDocument(const TSDocument &other)
-{
-	*this = other;
-}
-
-TSDocument::TSDocument(TSDocument &&other) noexcept
-{
-	*this = std::move(other);
-}*/
-
-/*const TSDocument &TSDocument::operator=(const TSDocument &other)
-{
-	m_DocID = other.m_DocID;
-	m_Indexies = other.m_Indexies;
-	m_Sentences = other.m_Sentences;
-	m_MetaData = other.m_MetaData;
-
-	return *this;
-}
-
-const TSDocument &TSDocument::operator=(TSDocument &&other) noexcept
-{
-	m_DocID = std::move(other.m_DocID);
-	m_Indexies = std::move(other.m_Indexies);
-	m_Sentences = std::move(other.m_Sentences);
-	m_MetaData = std::move(other.m_MetaData);
-
-	return *this;
-}*/
 
 void TSDocument::SaveToHistoryController(HistoryController &history) const
 {
@@ -514,11 +490,10 @@ int TSMetaData::ConstructIntDate(const std::string &data)
 	std::string day = data.substr(0, 2);
 	std::string month = data.substr(3, 2);
 	std::string year = data.substr(6, 4);
-	std::string hour = data.substr(11, 2);
-	if( !utils::IsStringIntNumber(day) || !utils::IsStringIntNumber(month) || !utils::IsStringIntNumber(year) || !utils::IsStringIntNumber(hour) )
+	if( !utils::IsStringIntNumber(day) || !utils::IsStringIntNumber(month) || !utils::IsStringIntNumber(year) )
 		return -1;
 
-	return std::stoi(hour) + std::stoi(day) * 24 + std::stoi(month) * 24 * 31 + std::stoi(year) * 24 * 365;
+	return std::stoi(day) + std::stoi(month)  * 31 + std::stoi(year) * 365;
 }
 
 TSDocumentPtr TSDocCollection::AllocateDocument()
@@ -570,6 +545,36 @@ void TSTimeLineCollections::InitDocumentsImportanceData(std::map<std::string, fl
 	m_DocIDToImportance = std::move(doc_to_importance);
 }
 
+float TSTimeLineCollections::GetDocImportance(const std::string &doc_id) const
+{ 
+	auto iter = m_DocIDToImportance.find(doc_id);
+	if( iter == m_DocIDToImportance.end() )
+		return 0.f;
+
+	return iter->second;
+}
+
+void TSTimeLineCollections::EraseCollectionsWithSizeLessThen(int size)
+{
+	std::vector<decltype(m_Collections)::iterator> candidates_for_delete;
+	for( auto day_collection_iter = m_Collections.begin(); day_collection_iter != m_Collections.end(); day_collection_iter++ ) {
+		if( day_collection_iter->second.size() < size ) {
+			candidates_for_delete.push_back(day_collection_iter);
+
+			//delete top doc from collection
+			for( const auto &doc : day_collection_iter->second ) {
+				auto iter = std::find(m_TopDocuments.begin(), m_TopDocuments.end(), doc.first);
+				if( iter != m_TopDocuments.end() )
+					m_TopDocuments.erase(iter);
+			}
+		}
+	}
+
+	for( auto &remove_iter : candidates_for_delete ) {
+		m_Collections.erase(remove_iter);
+	}
+}
+
 bool TSTimeLineQueries::AddQuery(int time_anchor, TSQuery &&query)
 {
 	auto queries_iter = m_Queries.lower_bound(time_anchor);
@@ -583,8 +588,10 @@ bool TSTimeLineQueries::AddQuery(int time_anchor, TSQuery &&query)
 			p_index->Normalize();
 		}
 	}
-
+	
+	
 	m_Queries.emplace_hint(queries_iter, time_anchor, std::move(query));
+
 	return true;
 }
 

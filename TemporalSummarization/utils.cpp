@@ -483,6 +483,7 @@ CLogger::~CLogger()
 std::unique_ptr<CProfiler> CProfiler::m_spInstance = nullptr;
 CProfiler::~CProfiler()
 {
+	DataToLog();
 }
 
 CProfiler::CProfiler()

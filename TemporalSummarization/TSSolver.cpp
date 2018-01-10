@@ -22,7 +22,7 @@ TSSolver::~TSSolver()
 
 bool TSSolver::InitParameters(const std::initializer_list<float> &params)
 {
-	constexpr int parameters_size = 4;
+	constexpr int parameters_size = 6;
 	if( params.size() < parameters_size )
 		return false;
 
@@ -32,10 +32,15 @@ bool TSSolver::InitParameters(const std::initializer_list<float> &params)
 		  sim_threshold = params.begin()[2],
 		  min_mmr = params.begin()[3];
 
+	bool doc_importance = (bool)params.begin()[4];
+
+	float alpha = params.begin()[5];
+
 	if( max_daily_size < 1 ||
 		lambda > 1 || lambda < 0 ||
 		sim_threshold  > 1 || sim_threshold  < 0||
-		min_mmr > 1 || min_mmr < 0)
+		min_mmr > 1 || min_mmr < 0 ||
+		alpha < 0 )
 		return false;
 
 
@@ -43,29 +48,29 @@ bool TSSolver::InitParameters(const std::initializer_list<float> &params)
 	m_fLambda = lambda;
 	m_fSimThreshold = sim_threshold;
 	m_fMinMMR = min_mmr;
+	m_bDocImportance = doc_importance;
+	m_fAlpha = alpha;
 
 	return true;
 }
 
 bool TSSolver::GetTemporalSummary(const TSTimeLineCollections &collections, const TSTimeLineQueries &queries, int sentences_number, std::vector<std::pair<float, TSSentenceConstPtr>> &sentences) const
 {
-	auto t1_s = std::chrono::high_resolution_clock::now();
-	std::map<float, TSSentenceConstPtr> all_extracted;
+	auto probe = CProfiler::CProfilerProbe("slv");
+	std::multimap<float, TSSentenceConstPtr> all_extracted;
 	for( const auto &day_collection : collections ) {
-		std::map<float, TSSentenceConstPtr> today_extacted;
+		std::multimap<float, TSSentenceConstPtr> today_extacted;
 		std::pair<float, TSSentenceConstPtr> sentence_pair;
 		TSQueryConstPtr today_query;
 		if( !queries.GetQuery(day_collection.first, today_query) ) {
-			auto t1_e = std::chrono::high_resolution_clock::now();
-			CProfiler::Instance()->AddDuration("all", (double)std::chrono::duration_cast<std::chrono::microseconds>(t1_e - t1_s).count() / 1e6);
 			return false;
 		}
 
-		std::vector<TSSentenceConstPtr> sentences;
-		if( !CreateSentencesFromCollection(day_collection.second, sentences) )
+		std::vector<TSSolverSentenceData> sentences;
+		if( !CreateSentencesFromCollection(collections, day_collection.second, sentences) )
 			return false;
 
-		while( today_extacted.size() < m_iMaxDailyAnswerSize && GetTopSentence(sentences, *today_query, all_extracted, today_extacted, sentence_pair) ) {
+		while( today_extacted.size() < m_iMaxDailyAnswerSize && !sentences.empty() && GetTopSentence(sentences, *today_query, all_extracted, today_extacted, sentence_pair) ) {
 			today_extacted.insert(std::move(sentence_pair));
 		}
 
@@ -79,12 +84,10 @@ bool TSSolver::GetTemporalSummary(const TSTimeLineCollections &collections, cons
 		iter_end++;
 	sentences.assign(iter_begin, iter_end);
 
-	auto t1_e = std::chrono::high_resolution_clock::now();
-	CProfiler::Instance()->AddDuration("slv", (double)std::chrono::duration_cast<std::chrono::microseconds>(t1_e - t1_s).count() / 1e6);
 	return true;
 }
 
-bool TSSolver::CreateSentencesFromCollection(const TSDocCollection &collection, std::vector<TSSentenceConstPtr> &sentences) const
+bool TSSolver::CreateSentencesFromCollection(const TSTimeLineCollections &collections, const TSDocCollection &collection, std::vector<TSSolverSentenceData> &sentences) const
 {
 	int all_sentences_size = 0;
 	for( const auto &doc_pair : collection )
@@ -102,8 +105,12 @@ bool TSSolver::CreateSentencesFromCollection(const TSDocCollection &collection, 
 			for( const auto &lemm_iter : *p_index )
 				sentence_lemm_size += (int)lemm_iter.GetPositions().size();
 
-			if( sentence_lemm_size >= m_iMinSentenceSize && sentence_lemm_size <= m_iMaxSentenceSize )
-				sentences.push_back(&(*sent_iter));
+			if( sentence_lemm_size >= m_iMinSentenceSize && sentence_lemm_size <= m_iMaxSentenceSize ) {
+				if( m_bDocImportance )
+					sentences.push_back(std::make_pair(&(*sent_iter), collections.GetDocImportance(sent_iter->GetDocPtr()->GetDocID())));
+				else 
+					sentences.push_back(&(*sent_iter));
+			}
 		}
 	}
 
@@ -113,7 +120,7 @@ bool TSSolver::CreateSentencesFromCollection(const TSDocCollection &collection, 
 	return true;
 }
 
-bool TSSolver::GetTopSentence(std::vector<TSSentenceConstPtr> &collection, const TSQuery &query, const std::map<float, TSSentenceConstPtr> &extracted_sentences, const std::map<float, TSSentenceConstPtr> &extracted_sentences_today, std::pair<float, TSSentenceConstPtr> &sentence_pair) const
+bool TSSolver::GetTopSentence(std::vector<TSSolverSentenceData> &collection, const TSQuery &query, const std::multimap<float, TSSentenceConstPtr> &extracted_sentences, const std::multimap<float, TSSentenceConstPtr> &extracted_sentences_today, std::pair<float, TSSentenceConstPtr> &sentence_pair) const
 {
 	std::vector<float> scores(collection.size(), 0.);
 
@@ -127,7 +134,10 @@ bool TSSolver::GetTopSentence(std::vector<TSSentenceConstPtr> &collection, const
 		return false;
 
 	sentence_pair.first = scores[index_max];
-	sentence_pair.second = collection[index_max];
+	if( m_bDocImportance )
+		sentence_pair.second = std::get<std::pair<TSSentenceConstPtr, float>>(collection[index_max]).first;
+	else
+		sentence_pair.second = std::get<TSSentenceConstPtr>(collection[index_max]);
 
 	auto placer_iter = collection.begin(), runner_iter = collection.begin();
 	for( int i = 0; i < scores.size(); i++ ) {
@@ -143,23 +153,33 @@ bool TSSolver::GetTopSentence(std::vector<TSSentenceConstPtr> &collection, const
 	return true;
 }
 
-float TSSolver::RankOneSentence(const TSSentenceConstPtr &sentence, const TSQuery &query, const std::map<float, TSSentenceConstPtr> &extracted_sentences, const std::map<float, TSSentenceConstPtr> &extracted_sentences_today) const
+float TSSolver::RankOneSentence(const TSSolverSentenceData &sentence, const TSQuery &query, const std::multimap<float, TSSentenceConstPtr> &extracted_sentences, const std::multimap<float, TSSentenceConstPtr> &extracted_sentences_today) const
 {
 	float score = 0, sim_to_query = 0, sim_to_extracted = 0, sim_to_extraxted_today = 0;
 
-	sim_to_query = *sentence * query;
+	TSSentenceConstPtr sentence_ptr;
+	if( m_bDocImportance ) {
+		std::pair<TSSentenceConstPtr, float> sentence_data_pair = std::get<std::pair<TSSentenceConstPtr, float>>(sentence);
+		sentence_ptr = sentence_data_pair.first;
+		float doc_importance = sentence_data_pair.second;
+
+		sim_to_query = (1.f + m_fAlpha * doc_importance) * (*sentence_ptr * query);
+	} else {
+		sentence_ptr = std::get<TSSentenceConstPtr>(sentence);
+		sim_to_query = *sentence_ptr * query;
+	}
 	
 	for( const auto sent : extracted_sentences )
-		sim_to_extracted = std::max(sim_to_extracted, *sent.second * *sentence);
+		sim_to_extracted = std::max(sim_to_extracted, *sent.second * *sentence_ptr);
 
 	for( const auto sent : extracted_sentences_today )
-		sim_to_extraxted_today = std::max(sim_to_extraxted_today, *sent.second * *sentence);
+		sim_to_extraxted_today = std::max(sim_to_extraxted_today, *sent.second * *sentence_ptr);
 
 	float sim_to_other = std::max(sim_to_extracted, sim_to_extraxted_today);
 	if( sim_to_other > m_fSimThreshold )
 		return 0.f;
 
-	float sentence_num_penality = 1.f - 0.5f * sin((float)sentence->GetSentenseNumber() / sentence->GetDocPtr()->sentences_size());
+	float sentence_num_penality = 1.f - 0.5f * sin((float)sentence_ptr->GetSentenseNumber() / sentence_ptr->GetDocPtr()->sentences_size());
 	score = sentence_num_penality * m_fLambda * sim_to_query - (1.f - m_fLambda) * sim_to_other;
 
 	return score;

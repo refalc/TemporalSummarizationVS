@@ -19,8 +19,14 @@ public:
 
 private:
 	bool RunQuery(const std::string &doc_id) const;
+
+private:
+	// todo to new modules
 	bool SaveTemporalSummaryInFile(const std::vector<std::pair<float, TSSentenceConstPtr>> &temporal_summary, const TSTimeLineQueries &queries, const std::string &init_doc_id) const;
 	bool CleanAnswerFile() const;
+
+	bool ConstructTimeLinesQueries(TSQuery &&init_query, const std::string &init_doc_id, const TSTimeLineCollections &collections, TSTimeLineQueries &queries) const;
+	int GetQueryDate(const std::string &init_doc_id, const TSTimeLineCollections &collections) const;
 
 private:
 	std::unique_ptr<TSDataExtractor> m_spDataExtractor;

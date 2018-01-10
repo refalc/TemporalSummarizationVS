@@ -5,6 +5,8 @@
 class TSSolver : public ISimpleModule
 {
 public:
+	using TSSolverSentenceData = std::variant<TSSentenceConstPtr, std::pair<TSSentenceConstPtr, float>>;
+
 	TSSolver();
 	~TSSolver();
 
@@ -12,9 +14,10 @@ public:
 	bool GetTemporalSummary(const TSTimeLineCollections &collections, const TSTimeLineQueries &queries, int sentence_number, std::vector<std::pair<float, TSSentenceConstPtr>> &sentences) const;
 
 private:
-	bool GetTopSentence(std::vector<TSSentenceConstPtr> &collection, const TSQuery &query, const std::map<float, TSSentenceConstPtr> &extracted_sentences, const std::map<float, TSSentenceConstPtr> &extracted_sentences_today, std::pair<float, TSSentenceConstPtr> &sentence_pair) const;
-	float RankOneSentence(const TSSentenceConstPtr &sentence, const TSQuery &query, const std::map<float, TSSentenceConstPtr> &extracted_sentences, const std::map<float, TSSentenceConstPtr> &extracted_sentences_today) const;
-	bool CreateSentencesFromCollection(const TSDocCollection &collection, std::vector<TSSentenceConstPtr> &sentences) const;
+	bool GetTopSentence(std::vector<TSSolverSentenceData> &collection, const TSQuery &query, const std::multimap<float, TSSentenceConstPtr> &extracted_sentences, const std::multimap<float, TSSentenceConstPtr> &extracted_sentences_today, std::pair<float, TSSentenceConstPtr> &sentence_pair) const;
+	float RankOneSentence(const TSSolverSentenceData &sentence, const TSQuery &query, const std::multimap<float, TSSentenceConstPtr> &extracted_sentences, const std::multimap<float, TSSentenceConstPtr> &extracted_sentences_today) const;
+	bool CreateSentencesFromCollection(const TSTimeLineCollections &collections, const TSDocCollection &collection, std::vector<TSSolverSentenceData> &sentences) const;
+
 private:
 	int m_iMaxDailyAnswerSize;
 	float m_fSimThreshold;
@@ -22,5 +25,7 @@ private:
 	float m_fMinMMR;
 	int m_iMinSentenceSize;
 	int m_iMaxSentenceSize;
+	bool m_bDocImportance;
+	float m_fAlpha;
 };
 

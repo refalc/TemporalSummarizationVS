@@ -216,6 +216,7 @@ std::string TSHttpManager::CreateGetRequest(const std::string &request) const
 
 bool TSHttpManager::Get(const std::string &request, std::string &reply)
 {
+	auto probe = CProfiler::CProfilerProbe("get");
 	if( !m_Socket.CreateSocket(PF_INET, SOCK_STREAM, IPPROTO_TCP) )
 		return false;
 
@@ -225,11 +226,8 @@ bool TSHttpManager::Get(const std::string &request, std::string &reply)
 	if( !m_Socket.Send(CreateGetRequest(request)) )
 		return false;
 
-	auto t1_s = std::chrono::high_resolution_clock::now();
 	if( !m_Socket.Recv(reply) )
 		return false;
-	auto t1_e = std::chrono::high_resolution_clock::now();
-	CProfiler::Instance()->AddDuration("recv", (double)std::chrono::duration_cast<std::chrono::microseconds>(t1_e - t1_s).count() / 1e6);
 
 	if( !m_Socket.CloseSocket() )
 		return false;

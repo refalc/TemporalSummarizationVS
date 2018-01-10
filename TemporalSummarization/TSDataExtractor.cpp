@@ -5,7 +5,6 @@
 #include <regex>
 #include <windows.h>
 #include <locale>
-#include <chrono>
 #include "CNldxSearchEngine.h"
 
 TSDataExtractor::TSDataExtractor()
@@ -34,6 +33,7 @@ ReturnCode TSDataExtractor::InitParameters(const std::initializer_list<float> &p
 
 ReturnCode TSDataExtractor::GetDocument(const std::string &doc_id, TSDocumentPtr document) const
 {
+	auto probe = CProfiler::CProfilerProbe("get_doc");
 	if( !m_spSearchEngine || !m_pReplyProcessor ) {
 		CLogger::Instance()->WriteToLog("ERROR: Search engine or reply processor does not inited");
 		return ReturnCode::TS_GENERAL_ERROR;
@@ -41,9 +41,10 @@ ReturnCode TSDataExtractor::GetDocument(const std::string &doc_id, TSDocumentPtr
 
 	ReturnCode result = m_DataHistory.LoadDocument(doc_id, document);
 	if( result == ReturnCode::TS_DOC_SKIPPED ) {
-		CLogger::Instance()->WriteToLog("SKIPPED: Doc " + doc_id);
+		//CLogger::Instance()->WriteToLog("SKIPPED: Doc " + doc_id);
 		return ReturnCode::TS_DOC_SKIPPED;
 	} else if( result == ReturnCode::TS_GENERAL_ERROR ) {
+		auto probe = CProfiler::CProfilerProbe("recv_doc");
 		RequestDataType request = doc_id;
 		ReplyDataType reply;
 		if( !m_spSearchEngine->SendRequest(request, reply) ) {
@@ -52,7 +53,7 @@ ReturnCode TSDataExtractor::GetDocument(const std::string &doc_id, TSDocumentPtr
 		}
 
 		if( reply.second.size() > m_iMaxDocSize ) {
-			CLogger::Instance()->WriteToLog("SKIPPED: Doc " + doc_id + " , size = " + std::to_string(reply.second.size()));
+			//CLogger::Instance()->WriteToLog("SKIPPED: Doc " + doc_id + " , size = " + std::to_string(reply.second.size()));
 			m_DataHistory.AddToFailedList(doc_id);
 			return ReturnCode::TS_DOC_SKIPPED;
 		}
@@ -111,6 +112,7 @@ bool TSDataExtractor::GetDocumentList(const TSQuery &query, std::vector<std::str
 
 ReturnCode TSDataExtractor::GetDocuments(const TSQuery &query, TSDocCollection &collection) const
 {
+	auto probe = CProfiler::CProfilerProbe("get_docs");
 	if( !m_spSearchEngine || !m_pReplyProcessor ) {
 		CLogger::Instance()->WriteToLog("ERROR: Search engine or reply processor does not inited");
 		return ReturnCode::TS_GENERAL_ERROR;
@@ -125,7 +127,7 @@ ReturnCode TSDataExtractor::GetDocuments(const TSQuery &query, TSDocCollection &
 	CLogger::Instance()->WriteToLog("Process " + std::to_string(doc_list.size()) + " docs");
 	int counter = 0;
 	for( const auto &doc_id : doc_list ) {
-		if( counter++ % 5 )
+		if( counter++ % 10 )
 			std::cout << "\r\t\t\t\t\r" << counter * 100.f / doc_list.size();
 
 		TSDocumentPtr doc = collection.AllocateDocument();
@@ -142,7 +144,7 @@ ReturnCode TSDataExtractor::GetDocuments(const TSQuery &query, TSDocCollection &
 	return ReturnCode::TS_NO_ERROR;
 }
 
-TSDataCollection::TSDataCollection() : m_HistoryController(m_sSavedDocsPath) {
+TSDataCollection::TSDataCollection() {
 	if( !LoadData() )
 		CLogger::Instance()->WriteToLog("ERROR : Failed while load docs names");
 }
@@ -154,15 +156,17 @@ TSDataCollection::~TSDataCollection()
 
 ReturnCode TSDataCollection::LoadDocument(const std::string &doc_id, TSDocumentPtr &doc_ptr)
 {
+	auto probe = CProfiler::CProfilerProbe("load_doc");
 	if( m_FailedDocs.find(doc_id) != m_FailedDocs.end() )
 		return ReturnCode::TS_DOC_SKIPPED;
 
 	if( m_SavedDocs.find(doc_id) == m_SavedDocs.end() )
 		return ReturnCode::TS_GENERAL_ERROR;
 
-	m_HistoryController.LoadMode(doc_id);
-	doc_ptr->LoadFromHistoryController(m_HistoryController);
-	m_HistoryController.CloseFiles();
+	HistoryController hist_controller(m_sSavedDocsPath);
+	hist_controller.LoadMode(doc_id);
+	doc_ptr->LoadFromHistoryController(hist_controller);
+	hist_controller.CloseFiles();
 
 	return ReturnCode::TS_NO_ERROR;
 }
@@ -172,9 +176,10 @@ bool TSDataCollection::SaveDocument(const std::string &doc_id, TSDocumentPtr &do
 	if( m_SavedDocs.find(doc_id) != m_SavedDocs.end() || m_FailedDocs.find(doc_id) != m_FailedDocs.end() )
 		return true;
 
-	m_HistoryController.SaveMode(doc_id);
-	doc_ptr->SaveToHistoryController(m_HistoryController);
-	m_HistoryController.CloseFiles();
+	HistoryController hist_controller(m_sSavedDocsPath);
+	hist_controller.SaveMode(doc_id);
+	doc_ptr->SaveToHistoryController(hist_controller);
+	hist_controller.CloseFiles();
 	m_SavedDocs.insert(doc_id);
 
 	return true;

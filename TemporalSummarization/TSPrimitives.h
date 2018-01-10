@@ -350,11 +350,16 @@ class TSTimeLineCollections
 public:
 	void AddDocNode(std::map<std::string, TSDocument>::node_type &&node, int time);
 	void InitDocumentsImportanceData(std::map<std::string, float> &&doc_to_importance, std::vector<std::string> &&top_docs);
+	float GetDocImportance(const std::string &doc_id) const;
+	const std::vector<std::string> &GetTopDocs() const { return m_TopDocuments; }
+	void EraseCollectionsWithSizeLessThen(int size);
+
 	// iterate docs
 	inline std::map<int, TSDocCollection>::iterator begin() { return m_Collections.begin(); }
 	inline std::map<int, TSDocCollection>::iterator end() { return m_Collections.end(); }
 	inline std::map<int, TSDocCollection>::const_iterator begin() const { return m_Collections.begin(); }
 	inline std::map<int, TSDocCollection>::const_iterator end() const { return m_Collections.end(); }
+	inline size_t size() const { return m_Collections.size(); }
 
 private:
 	std::map<int, TSDocCollection> m_Collections;
