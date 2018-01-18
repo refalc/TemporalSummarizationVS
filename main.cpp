@@ -28,7 +28,7 @@ int main(int argc, char *argv[])
 	std::cout << sentence->EmbeddingSimilarity(*sentence, SDataType::LEMMA) << std::endl;
 	*/
 	auto probe = CProfiler::CProfilerProbe("all");
-
+	//__debugbreak();
 	CArgReader arg_reader;
 	if( arg_reader.ReadArguments(argc, argv) ) {
 		TSController controller;
@@ -111,6 +111,7 @@ int main(int argc, char *argv[])
 			std::vector<std::string> input_queries = { "10839989" };
 
 			int summary_size = input_params.m_MaxAnswerSize;
+	
 			if( !controller.InitParameters(input_params, input_answer_path, input_w2v_path, summary_size) )
 				return -1;
 

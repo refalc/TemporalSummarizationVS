@@ -97,7 +97,7 @@ private:
 
 private:
 	static std::unique_ptr<CLogger> m_spInstance;
-	const std::string m_sLoggerFile = "C:\\!DEV\\C++\\Diplom\\TemporalSummarization\\TemporalSummarization\\tss.log";
+	const std::string m_sLoggerFile = "tss.log";
 	std::fstream m_pFile;
 };
 
@@ -177,7 +177,7 @@ private:
 
 	std::unordered_map<std::string, int> m_S2IIndex;
 	std::unordered_map<int, std::string> m_I2SIndex;
-	const std::string m_sFileName = std::string("C:\\!DEV\\C++\\Diplom\\TemporalSummarization\\build-TemporalSummarization-Desktop_Qt_5_5_1_MinGW_32bit-Release\\index.idx");
+	const std::string m_sFileName = std::string("index.idx");
 	std::set<int> m_StopWords;
 	int m_iLastIndex;
 };

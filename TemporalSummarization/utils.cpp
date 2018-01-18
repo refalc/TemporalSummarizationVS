@@ -625,6 +625,7 @@ int CIndex::AddToIndex(const std::string &str)
 			index = GetID(str);
 			if( index == -1) {
 				m_S2IIndex[str] = ++m_iLastIndex;
+				m_I2SIndex[m_iLastIndex] = str;
 				index = m_iLastIndex;
 			}
 		}
@@ -672,6 +673,8 @@ bool CIndex::Load()
 
 		curr_index++;
 	}
+
+	m_iLastIndex = curr_index - 1;
 
 	pFile.close();
 

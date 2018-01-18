@@ -102,6 +102,8 @@ bool TSController::RunQueries(const std::vector<std::string> &queries) const
 	for( int i = 0; i < queries.size(); i++ )
 		if( !RunQuery(queries[i]) ) {
 			// save empty results
+			CLogger::Instance()->WriteToLog("ERROR : save empty result, doc_id = " + queries[i]);
+
 			std::vector<std::pair<float, TSSentenceConstPtr>> temporal_summary;
 			TSTimeLineQueries ts_queries;
 
@@ -148,6 +150,7 @@ bool TSController::RunQuery(const std::string &doc_id) const
 	ConstructTimeLinesQueries(std::move(query), doc_id, collection, queries);
 
 	std::vector<std::pair<float, TSSentenceConstPtr>> temporal_summary;
+	CLogger::Instance()->WriteToLog("INFO : start solve collection size = " + std::to_string(collection.size()) + " queries size = " + std::to_string((int)std::distance(queries.begin(), queries.end())));
 	if( !m_spSolver->GetTemporalSummary(collection, queries, m_iTemporalSummarySize, temporal_summary) ) {
 		CLogger::Instance()->WriteToLog("ERROR : error while construct temporal summary");
 		return false;
@@ -245,6 +248,13 @@ bool TSController::CleanAnswerFile() const
 bool TSController::ConstructTimeLinesQueries(TSQuery &&init_query, const std::string &init_doc_id, const TSTimeLineCollections &collections, TSTimeLineQueries &queries) const
 {
 	int query_int_date = GetQueryDate(init_doc_id, collections);
+
+	if( m_Params.m_SlvW2VEnable ) {
+		TSIndexConstPtr p_index;
+		if( !init_query.GetIndex(SDataType::LEMMA, p_index) )
+			return false;
+		p_index->ConstructIndexEmbedding(m_spModel.get());
+	}
 	if( !queries.AddQuery(query_int_date, std::move(init_query)) )
 		return false;
 
@@ -264,6 +274,13 @@ bool TSController::ConstructTimeLinesQueries(TSQuery &&init_query, const std::st
 			}
 			else
 				query = query_first_level;
+
+			if( m_Params.m_SlvW2VEnable ) {
+				TSIndexConstPtr p_index;
+				if( !query.GetIndex(SDataType::LEMMA, p_index) )
+					return false;
+				p_index->ConstructIndexEmbedding(m_spModel.get());
+			}
 
 			int query_int_date = GetQueryDate(doc_id, collections);
 			if( !queries.AddQuery(query_int_date, std::move(query)) )

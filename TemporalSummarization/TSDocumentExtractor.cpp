@@ -1,6 +1,6 @@
 #include "TSDocumentExtractor.h"
 #include "TSDataExtractor.h"
-#include <winsock.h>
+//#include <winsock.h>
 #include <iostream>
 
 TSDocumentExtractor::TSDocumentExtractor() :
@@ -16,7 +16,7 @@ TSDocumentExtractor::~TSDocumentExtractor()
 
 bool TSDocumentExtractor::InitParameters(const std::initializer_list<float> &params)
 {
-	constexpr int parameters_size = 8;
+	constexpr int parameters_size = 9;
 	if( params.size() < parameters_size )
 		return false;
 
@@ -114,10 +114,10 @@ void TSDocumentExtractor::CutDaysWithSmallPublicationsSize(TSTimeLineCollections
 
 	std::sort(coll_sizes.begin(), coll_sizes.end(), std::greater<int>());
 	int summ_top_3 = 0;
-	for( int i = 0; i < min(3, coll_sizes.size()); i++ )
+	for( int i = 0; i < std::min(3, (int)coll_sizes.size()); i++ )
 		summ_top_3 += coll_sizes[i];
 
-	summ_top_3 /= min(3, (int)coll_sizes.size());
+	summ_top_3 /= std::min(3, (int)coll_sizes.size());
 
 	collections.EraseCollectionsWithSizeLessThen((int)(summ_top_3 * 0.2f));
 }
@@ -217,7 +217,7 @@ void TSDocumentExtractor::PowerMethod(const std::vector<TSDocumentRepresentation
 			}
 
 			float dif = std::fabs(importance_next[i] - importance_last[i]);
-			max_dif = max(max_dif, dif);
+			max_dif = std::max(max_dif, dif);
 			
 		}
 		importance_last.swap(importance_next);
@@ -246,6 +246,7 @@ void TSDocumentExtractor::ConstructDocumentsRepresentations(const TSDocCollectio
 void TSDocumentExtractor::ConstructDocRepresentation(const TSDocument &document, TSDocumentRepresentation &doc_representation) const
 {
 	doc_representation.InitDocPtr(&document);
+	doc_representation.InitIsW2V(m_bIsW2V);
 
 	int i = 0;
 	for( auto sentences_iter = document.sentences_begin(); sentences_iter != document.sentences_end() && i < m_iDocHeadSize; sentences_iter++, i++ ) {
@@ -278,7 +279,7 @@ bool TSDocumentExtractor::IsSentenceHasReferenceToThePast(TSSentenceConstPtr sen
 	if( !sentence->GetIndex(SDataType::LEMMA, p_index) )
 		return false;
 
-	if( p_index->size() < 4 /*m_iMinSentenceSize*/ || p_index->size() < 30 /*m_MaxSentenceSize*/ )
+	if( p_index->size() < 4 /*m_iMinSentenceSize*/ || p_index->size() > 30 /*m_MaxSentenceSize*/ )
 		return false;
 
 	return sentence->GetDocPtr()->sentences_size() - sentence->GetSentenseNumber() <= m_iDocTailSize;
@@ -307,9 +308,11 @@ float TSDocumentExtractor::TSDocumentRepresentation::operator*(const TSDocumentR
 	for( auto tail_sentence : m_TailSentences ) {
 		for( auto head_sentence : other.m_HeadSentences ) {
 			if( m_bIsW2V ) {
-				weight = max(weight, tail_sentence->EmbeddingSimilarity(*head_sentence, SDataType::LEMMA));
+				float w = tail_sentence->EmbeddingSimilarity(*head_sentence, SDataType::LEMMA);
+				weight = std::max(weight, w);
 			} else {
-				weight = max(weight, *tail_sentence * *head_sentence);
+				float w = *tail_sentence * *head_sentence;
+				weight = std::max(weight, w);
 			}
 		}
 	}
