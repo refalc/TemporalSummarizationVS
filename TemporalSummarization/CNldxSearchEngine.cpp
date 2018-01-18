@@ -312,6 +312,9 @@ bool CNldxSearchEngine::CNldxReplyProcessor::FindTag(const std::string &text, co
 
 bool CNldxSearchEngine::CNldxReplyProcessor::ProcessTrData(TSDocumentPtr document, const std::string &stype, const std::string &sword, const std::string &sweight, const std::string &scount, const std::string &spos_data) const
 {
+	if( sword.empty() )
+		return false;
+
 	SDataType type = String2Type(stype);
 	if( type == SDataType::FINAL_TYPE )
 		return true;

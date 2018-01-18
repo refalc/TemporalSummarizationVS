@@ -79,11 +79,15 @@ bool TSQueryConstructor::QueryConstructionProcess(const std::string &doc_id, TSQ
 
 	TSDocCollection coll;
 	TSDocumentPtr doc = coll.AllocateDocument();
-	if( m_pDataExtractor->GetDocument(doc_id, doc) != ReturnCode::TS_NO_ERROR )
+	if( m_pDataExtractor->GetDocument(doc_id, doc) != ReturnCode::TS_NO_ERROR ) {
+		CLogger::Instance()->WriteToLog("ERROR: while GetDocument :" + doc_id);
 		return false;
+	}
 
-	if( !ConstructQueryFromDoc(doc, query) )
+	if( !ConstructQueryFromDoc(doc, query) ) {
+		CLogger::Instance()->WriteToLog("ERROR: while ConstructQueryFromDoc :" + doc_id);
 		return false;
+	}
 
 	return true;
 }

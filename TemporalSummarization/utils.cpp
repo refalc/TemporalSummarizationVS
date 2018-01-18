@@ -546,14 +546,14 @@ CIndex *CIndex::Instance()
 
 CIndex::CIndex()
 {
-	m_iLastIndex = 0;
+	m_iLastIndex = -1;
 
 	if( !Load() ) {
 		std::cout << "Error to load index from " + m_sFileName << std::endl;
 		CLogger::Instance()->WriteToLog("Error to load index from " + m_sFileName);
 	}
 
-	std::set<std::string> vStopWords;
+	/*std::set<std::string> vStopWords;
 	vStopWords.insert("б");
 	vStopWords.insert("аег");
 	vStopWords.insert("дн");
@@ -592,7 +592,7 @@ CIndex::CIndex()
 
 	for( const auto &elem : vStopWords ) {
 		m_StopWords.insert(AddToIndex(elem));
-	}
+	}*/
 }
 
 CIndex::~CIndex()
@@ -618,13 +618,17 @@ bool CIndex::GetStr(int ID, std::string &str) const
 }
 int CIndex::AddToIndex(const std::string &str)
 {
+	if( str.empty() )
+		return -1;
+
 	int index = GetID(str);
 	if( index == -1 ) {
 #pragma omp critical (index_add_to_index) 
 		{
 			index = GetID(str);
 			if( index == -1) {
-				m_S2IIndex[str] = ++m_iLastIndex;
+				m_iLastIndex++;
+				m_S2IIndex[str] = m_iLastIndex;
 				m_I2SIndex[m_iLastIndex] = str;
 				index = m_iLastIndex;
 			}
