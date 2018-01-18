@@ -34,6 +34,18 @@ bool TSController::InitParameters(const Params &params, const std::string &answe
 	m_AnswerPath = answer_path;
 	m_W2VPath = w2v_path;
 	m_iTemporalSummarySize = summary_size;
+
+	m_spModel.reset(new Word2Vec);
+	if( m_Params.m_DIW2VEnable || m_Params.m_SlvW2VEnable ) {
+		if( !m_spModel->Load(m_W2VPath) )
+			return false;
+
+		if( !m_spDocExtractor->InitW2VModel(m_spModel.get()) )
+			return false;
+
+		if( !m_spSolver->InitW2VModel(m_spModel.get()) )
+			return false;
+	}
 	/*
 	m_iLemmsFor1L
 	m_iTermsFor1L
@@ -59,7 +71,7 @@ bool TSController::InitParameters(const Params &params, const std::string &answe
 	*/
 	auto doc_extractor_params = { (float)m_Params.m_PDocCount, (float)m_Params.m_PSoftOr, /*todo add new param or delete*/0.f,
 		                          (float)m_Params.m_DIMinLinkScore, (float)m_Params.m_DIPowerMethodDFactor, (float)m_Params.m_DIDocBoundary,
-		                          (float)m_Params.m_DocImportance, (float)m_Params.m_PTemporalMode };
+		                          (float)m_Params.m_DocImportance, (float)m_Params.m_PTemporalMode, (float)m_Params.m_DIW2VEnable };
 	if( !m_spDocExtractor->InitParameters(doc_extractor_params) )
 		return false;
 
@@ -70,7 +82,7 @@ bool TSController::InitParameters(const Params &params, const std::string &answe
 	m_fMinMMR
 	*/
 	auto solver_params = { (float)m_Params.m_TempMaxDailyAnswerSize, (float)m_Params.m_PLambda, /*todo add new param or delete*/0.8f,
-		                   (float)m_Params.m_PMinMMR, (float)m_Params.m_DocImportance, (float)m_Params.m_DIAlpha };
+		                   (float)m_Params.m_PMinMMR, (float)m_Params.m_DocImportance, (float)m_Params.m_DIAlpha, (float)m_Params.m_SlvW2VEnable };
 	if( !m_spSolver->InitParameters(solver_params) )
 		return false;
 

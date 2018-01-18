@@ -1,7 +1,7 @@
 #include "utils.h"
 #include <windows.h>
 #include <iostream>
-
+#include <locale>
 // !!copy from outside
 // todo rewrite
 namespace utils {
@@ -364,6 +364,8 @@ bool CArgReader::ReadConfig(std::string path_to_config)
 
 	Params cur_params;
 	// perma const params
+	cur_params.m_DIW2VEnable = false;
+	cur_params.m_SlvW2VEnable = false;
 	cur_params.m_MaxAnswerSize = 15;            //todo task_param
 	cur_params.m_PMinSentSize = 4;              //todo hardcode
 	cur_params.m_PMinMMR = 0.0001;              //todo hardcode
@@ -412,9 +414,12 @@ bool CArgReader::ReadConfig(std::string path_to_config)
 		return false;
 	if (!GetDataFromTag(content, "QEDoubleExtension", cur_params.m_QEDoubleExtension))
 		return false;
+	if( !GetDataFromTag(content, "DIW2VEnable", cur_params.m_DIW2VEnable) )
+		return false;
+	if( !GetDataFromTag(content, "SlvW2VEnable", cur_params.m_SlvW2VEnable) )
+		return false;
 
 	m_Params = cur_params;
-
 	return true;
 }
 
@@ -781,3 +786,57 @@ void HistoryController::flush()
 	m_pFileOut.flush();
 }
 //--------------------HISTORY--------------------
+
+//--------------------W2V------------------------
+bool Word2Vec::Load(const std::string &path)
+{
+	m_Model.clear();
+
+	std::ifstream pFile;
+	pFile.open(path, std::ios_base::binary);
+	if( !pFile.is_open() ) {
+		CLogger::Instance()->WriteToLog("ERROR : Error while load w2v model");
+		return false;
+	}
+
+	int words = 0, size = 0;
+	pFile >> words;
+	pFile >> size;
+	if( size != W2V_VECTOR_SIZE ) {
+		CLogger::Instance()->WriteToLog("ERROR : Error while load w2v model, incorrect vector size");
+		return false;
+	}
+
+	std::cout << "vocab = " << words << "\nsize = " << size << std::endl;
+
+	auto string_toupper = [](std::string &s, const std::locale &loc)
+	{
+		for( std::string::iterator i = s.begin(), j = s.end(); i != j; ++i )
+			*i = std::toupper(*i, loc);
+	};
+
+	char ch;
+	std::string word_str;
+	auto loc = std::locale("rus");
+	for( int i = 0; i < words; i++ ) {
+		pFile >> word_str;
+		word_str = utils::converter::Utf8_to_cp1251(word_str.data());
+
+		string_toupper(word_str, loc);
+
+		pFile.read(&ch, 1);
+
+		auto iter = m_Model.emplace(word_str, std::array<float, W2V_VECTOR_SIZE>());
+
+		float temp_val = 0.;
+		for( int j = 0; j < size; j++ ) {
+			pFile.read((char*)&temp_val, 1 * sizeof(float));
+			iter.first->second[j] = temp_val;
+		}
+	}
+
+	pFile.close();
+
+	return true;
+}
+//--------------------W2V------------------------

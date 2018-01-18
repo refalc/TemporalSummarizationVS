@@ -27,5 +27,6 @@ private:
 	int m_iMaxSentenceSize;
 	bool m_bDocImportance;
 	float m_fAlpha;
+	bool m_bIsW2V;
 };
 

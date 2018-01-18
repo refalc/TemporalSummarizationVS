@@ -71,7 +71,7 @@ public:
 	TSIndexItemID(TSIndexItemID &&other) noexcept { m_ID = std::move(other.m_ID); }
 
 	operator int() { return m_ID; };
-	operator std::string() {
+	operator std::string() const {
 		std::string temp_str;
 		CIndex::Instance()->GetStr(m_ID, temp_str);
 		return temp_str;
@@ -132,8 +132,8 @@ private:
 class TSIndex
 {
 public:
-	TSIndex() {}
-	TSIndex(SDataType type) noexcept : m_eIndexType(type) {}
+	TSIndex();
+	TSIndex(SDataType type) noexcept;
 	TSIndex(const TSIndex &other);
 	TSIndex(TSIndex &&other) noexcept;
 
@@ -145,6 +145,9 @@ public:
 		m_Index.push_back(std::forward<T>(item));
 		return true;
 	}
+
+	bool ConstructIndexEmbedding(const Word2Vec *model) const;
+	const std::array<float, W2V_VECTOR_SIZE> &GetIndexEmbedding() const { return m_IndexEmbedding; }
 
 	inline SDataType GetType() const { return m_eIndexType; }
 	std::string GetString() const;
@@ -176,6 +179,7 @@ public:
 private:
 	SDataType m_eIndexType;
 	std::vector<TSIndexItem> m_Index;
+	mutable std::array<float, W2V_VECTOR_SIZE> m_IndexEmbedding;
 };
 
 class TSIndexiesHolder
@@ -215,6 +219,7 @@ public:
 	inline std::vector<TSIndex>::const_iterator begin() const { return m_Indexies.begin(); }
 	inline std::vector<TSIndex>::const_iterator end() const { return m_Indexies.end(); }
 	float operator*(const TSIndexiesHolder &other) const;
+	float EmbeddingSimilarity(const TSIndexiesHolder &other, SDataType type) const;
 	float Similarity(const TSIndexiesHolder &other, SDataType type) const;
 
 	void SaveToHistoryController(HistoryController &history) const;
@@ -405,7 +410,12 @@ public:
 		m_pDataExtractor = data_extractor;
 		return true;
 	}
+	inline bool InitW2VModel(const class Word2Vec *model) {
+		m_pModel = model;
+		return true;
+	}
 
 protected:
 	const TSDataExtractor *m_pDataExtractor;
+	const Word2Vec *m_pModel;
 };

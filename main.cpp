@@ -10,6 +10,23 @@
 int main(int argc, char *argv[])
 {
 	CLogger::Instance()->WriteToLog("Start perf check");
+	/*
+	TSDataExtractor data_extractor;
+	TSDocCollection collection;
+	TSDocumentPtr doc_ptr = collection.AllocateDocument();
+	data_extractor.GetDocument("13197524", doc_ptr);
+
+	TSSentenceConstPtr sentence =  &(*doc_ptr->sentences_begin());
+	TSIndexConstPtr p_index;
+	sentence->GetIndex(SDataType::LEMMA, p_index);
+
+	Word2Vec model;
+	model.Load("C:\\Users\\MishaDEV\\Data\\news_corp_tr_last_w5_s100_c10.bin");
+
+	p_index->ConstructIndexEmbedding(&model);
+
+	std::cout << sentence->EmbeddingSimilarity(*sentence, SDataType::LEMMA) << std::endl;
+	*/
 	auto probe = CProfiler::CProfilerProbe("all");
 
 	CArgReader arg_reader;

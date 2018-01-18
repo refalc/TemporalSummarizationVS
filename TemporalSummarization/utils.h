@@ -10,8 +10,13 @@
 #include <set>
 #include <chrono>
 #include <omp.h>  
+
+// consts
+constexpr int W2V_VECTOR_SIZE = 100;
+
 // typedefs
 using StringHash = std::array<unsigned long long, 3>;
+using W2VModelType = std::unordered_map<std::string, std::array<float, W2V_VECTOR_SIZE>>;
 
 // functions
 namespace utils {
@@ -60,6 +65,8 @@ struct Params
 	int m_QEDEInitQuerrySize;
 	bool m_QEDoubleExtension;
 	double m_SentSimThreshold;
+	bool m_DIW2VEnable;
+	bool m_SlvW2VEnable;
 };
 
 class CLogger
@@ -198,4 +205,13 @@ private:
 	std::fstream m_pFileIn;
 	std::fstream m_pFileOut;
 	std::string m_FilesFolder = "";
+};
+
+class Word2Vec
+{
+public:
+	bool Load(const std::string &path);
+	inline const W2VModelType& GetModel() const { return m_Model; }
+private:
+	W2VModelType m_Model;
 };

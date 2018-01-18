@@ -68,6 +68,16 @@ void TSIndexItem::LoadFromHistoryController(HistoryController &history)
 
 	m_ID.LoadFromHistoryController(history);
 }
+TSIndex::TSIndex()
+{
+	std::fill(m_IndexEmbedding.begin(), m_IndexEmbedding.end(), 0.f);
+}
+
+TSIndex::TSIndex(SDataType type) noexcept :
+m_eIndexType(type)
+{
+	std::fill(m_IndexEmbedding.begin(), m_IndexEmbedding.end(), 0.f);
+}
 
 TSIndex::TSIndex(const TSIndex &other)
 {
@@ -83,6 +93,7 @@ const TSIndex &TSIndex::operator=(const TSIndex &other)
 {
 	m_eIndexType = other.m_eIndexType;
 	m_Index = other.m_Index;
+	m_IndexEmbedding = other.m_IndexEmbedding;
 
 	return *this;
 }
@@ -91,6 +102,7 @@ const TSIndex &TSIndex::operator=(TSIndex &&other) noexcept
 {
 	m_eIndexType = std::move(other.m_eIndexType);
 	m_Index = std::move(other.m_Index);
+	m_IndexEmbedding = std::move(other.m_IndexEmbedding);
 
 	return *this;
 }
@@ -125,6 +137,29 @@ std::string TSIndex::GetString() const
 		str += (iter == m_Index.begin() ? "" : " ") + (std::string)id;
 	}
 	return str;
+}
+
+bool TSIndex::ConstructIndexEmbedding(const Word2Vec *model) const
+{
+	if( !model )
+		return false;
+
+	int success_count = 0;
+	for( const auto index_item : m_Index ) {
+		std::string word = index_item.GetID();
+		auto iter = model->GetModel().find(word);
+		if( iter != model->GetModel().end() ) {
+			for( int i = 0; i < m_IndexEmbedding.size(); i++ )
+				m_IndexEmbedding[i] += index_item.GetWeight() * iter->second[i];
+			success_count += 1;
+		}
+	}
+
+	if( success_count > 0 )
+		for( int i = 0; i < m_IndexEmbedding.size(); i++ )
+			m_IndexEmbedding[i] /= (float)success_count;
+
+	return true;
 }
 
 std::string TSIndex::GetOrderedString() const
@@ -276,6 +311,30 @@ bool TSIndexiesHolder::InitIndex(SDataType type)
 float TSIndexiesHolder::operator*(const TSIndexiesHolder &other) const
 {
 	return Similarity(other, SDataType::LEMMA);
+}
+
+float TSIndexiesHolder::EmbeddingSimilarity(const TSIndexiesHolder &other, SDataType type) const
+{
+	TSIndexConstPtr curr_index, other_index;
+	if( !GetIndex(type, curr_index) || !other.GetIndex(type, other_index) )
+		return 0.f;
+
+	float sim = 0.f;
+	auto scalar_mult = [] (TSIndexConstPtr &lhs, TSIndexConstPtr &rhs) {
+		float scalar = 0.f;
+		for( int i = 0; i < lhs->GetIndexEmbedding().size(); i++ ) {
+			scalar += lhs->GetIndexEmbedding()[i] * rhs->GetIndexEmbedding()[i];
+		}
+		return scalar;
+	};
+	float scalar = scalar_mult(curr_index, other_index),
+		  len_curr_index = sqrt(scalar_mult(curr_index, curr_index)),
+		  len_other_index = sqrt(scalar_mult(other_index, other_index));
+
+	if( len_curr_index < FLT_EPSILON || len_other_index < FLT_EPSILON )
+		return 0.f;
+
+	return scalar / (len_curr_index * len_other_index);
 }
 
 float TSIndexiesHolder::Similarity(const TSIndexiesHolder &other, SDataType type) const

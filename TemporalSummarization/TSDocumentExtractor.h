@@ -13,8 +13,9 @@ public:
 	class TSDocumentRepresentation
 	{
 	public:
-		TSDocumentRepresentation() : m_sDate("") {}
+		TSDocumentRepresentation() : m_sDate(""), m_bIsW2V(false) {}
 		void InitDocPtr(TSDocumentConstPtr doc_ptr);
+		void InitIsW2V(bool is_w2v) { m_bIsW2V = is_w2v; }
 		void AddHead(TSSentenceConstPtr sentence_ptr);
 		void AddTail(TSSentenceConstPtr sentence_ptr);
 		inline TSDocumentConstPtr GetDocPtr() const { return m_pDoc; }
@@ -31,6 +32,7 @@ public:
 		TSDocumentConstPtr m_pDoc;
 		float m_fImportance;
 		std::string m_sDate;
+		bool m_bIsW2V;
 	};
 
 private:
@@ -51,6 +53,7 @@ private:
 	float m_fDocumentImportanceBoundary;
 	bool m_bDocImportance;
 	bool m_bTemporalMode;
+	bool m_bIsW2V;
 	int m_iDocTailSize;
 	int m_iDocHeadSize;
 };

@@ -39,4 +39,5 @@ private:
 	std::string m_W2VPath;
 	int m_iTemporalSummarySize;
 	mutable int m_iStoryIDCounter;
+	std::unique_ptr<Word2Vec> m_spModel;
 };

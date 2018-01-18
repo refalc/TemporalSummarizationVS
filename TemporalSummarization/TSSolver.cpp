@@ -36,6 +36,8 @@ bool TSSolver::InitParameters(const std::initializer_list<float> &params)
 
 	float alpha = params.begin()[5];
 
+	bool is_w2v = (bool)params.begin()[6];
+
 	if( max_daily_size < 1 ||
 		lambda > 1 || lambda < 0 ||
 		sim_threshold  > 1 || sim_threshold  < 0||
@@ -50,6 +52,7 @@ bool TSSolver::InitParameters(const std::initializer_list<float> &params)
 	m_fMinMMR = min_mmr;
 	m_bDocImportance = doc_importance;
 	m_fAlpha = alpha;
+	m_bIsW2V = is_w2v;
 
 	return true;
 }
@@ -100,6 +103,10 @@ bool TSSolver::CreateSentencesFromCollection(const TSTimeLineCollections &collec
 			TSIndexConstPtr p_index;
 			if( !sent_iter->GetIndex(SDataType::LEMMA, p_index) )
 				continue;
+
+			if( m_bIsW2V )
+				if( !p_index->ConstructIndexEmbedding(m_pModel) )
+					continue;
 
 			int sentence_lemm_size = 0;
 			for( const auto &lemm_iter : *p_index )
@@ -157,23 +164,39 @@ float TSSolver::RankOneSentence(const TSSolverSentenceData &sentence, const TSQu
 {
 	float score = 0, sim_to_query = 0, sim_to_extracted = 0, sim_to_extraxted_today = 0;
 
+
 	TSSentenceConstPtr sentence_ptr;
 	if( m_bDocImportance ) {
 		std::pair<TSSentenceConstPtr, float> sentence_data_pair = std::get<std::pair<TSSentenceConstPtr, float>>(sentence);
 		sentence_ptr = sentence_data_pair.first;
-		float doc_importance = sentence_data_pair.second;
+		if( m_bIsW2V )
+			sim_to_query = sentence_ptr->EmbeddingSimilarity(query, SDataType::LEMMA);
+		else
+			sim_to_query = (*sentence_ptr * query);
 
-		sim_to_query = (1.f + m_fAlpha * doc_importance) * (*sentence_ptr * query);
+		float doc_importance = sentence_data_pair.second;
+		sim_to_query *= (1.f + m_fAlpha * doc_importance);
 	} else {
 		sentence_ptr = std::get<TSSentenceConstPtr>(sentence);
-		sim_to_query = *sentence_ptr * query;
+		if( m_bIsW2V )
+			sim_to_query = sentence_ptr->EmbeddingSimilarity(query, SDataType::LEMMA);
+		else
+			sim_to_query = (*sentence_ptr * query);
 	}
 	
-	for( const auto sent : extracted_sentences )
-		sim_to_extracted = std::max(sim_to_extracted, *sent.second * *sentence_ptr);
+	if( m_bIsW2V ) {
+		for( const auto sent : extracted_sentences )
+			sim_to_extracted = std::max(sim_to_extracted, sent.second->EmbeddingSimilarity(*sentence_ptr, SDataType::LEMMA));
 
-	for( const auto sent : extracted_sentences_today )
-		sim_to_extraxted_today = std::max(sim_to_extraxted_today, *sent.second * *sentence_ptr);
+		for( const auto sent : extracted_sentences_today )
+			sim_to_extraxted_today = std::max(sim_to_extraxted_today, sent.second->EmbeddingSimilarity(*sentence_ptr, SDataType::LEMMA));
+	} else {
+		for( const auto sent : extracted_sentences )
+			sim_to_extracted = std::max(sim_to_extracted, *sent.second * *sentence_ptr);
+
+		for( const auto sent : extracted_sentences_today )
+			sim_to_extraxted_today = std::max(sim_to_extraxted_today, *sent.second * *sentence_ptr);
+	}
 
 	float sim_to_other = std::max(sim_to_extracted, sim_to_extraxted_today);
 	if( sim_to_other > m_fSimThreshold )

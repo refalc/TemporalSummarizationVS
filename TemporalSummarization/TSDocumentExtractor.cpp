@@ -27,7 +27,8 @@ bool TSDocumentExtractor::InitParameters(const std::initializer_list<float> &par
 		  power_d_factor = params.begin()[4],
 		  importance_boundary = params.begin()[5];
 	bool is_doc_importance = (bool)params.begin()[6],
-		 is_temporal = (bool)params.begin()[7];
+		 is_temporal = (bool)params.begin()[7],
+		 is_w2v = (bool)params.begin()[8];
 
 	if( doc_count < 0 || soft_or < 0.0f || soft_or > 1.f ||
 		min_doc_rank < 0.0f || min_doc_rank > 1.0f ||
@@ -44,6 +45,8 @@ bool TSDocumentExtractor::InitParameters(const std::initializer_list<float> &par
 	m_fDocumentImportanceBoundary = importance_boundary;
 	m_bDocImportance = is_doc_importance;
 	m_bTemporalMode = is_temporal;
+	m_bIsW2V = is_w2v;
+
 	return true;
 }
 
@@ -54,6 +57,9 @@ bool TSDocumentExtractor::ConstructTimeLineCollections(const TSQuery &query, TST
 	TSDocCollection whole_collection;
 	auto init_params = { (float)m_iDocCount, m_fSoftOr, m_fMinDocRank };
 	if( m_pDataExtractor->GetDocuments(query, init_params, whole_collection) != ReturnCode::TS_NO_ERROR )
+		return false;
+
+	if( whole_collection.size() == 0 )
 		return false;
 
 	if( m_bTemporalMode ) {
@@ -244,14 +250,25 @@ void TSDocumentExtractor::ConstructDocRepresentation(const TSDocument &document,
 	int i = 0;
 	for( auto sentences_iter = document.sentences_begin(); sentences_iter != document.sentences_end() && i < m_iDocHeadSize; sentences_iter++, i++ ) {
 		TSSentenceConstPtr sentence_ptr = &(*sentences_iter);
+		if( m_bIsW2V ) {
+			TSIndexConstPtr index_ptr;
+			if( !sentence_ptr->GetIndex(SDataType::LEMMA, index_ptr) || !index_ptr->ConstructIndexEmbedding(m_pModel) )
+				continue;
+		}
 		doc_representation.AddHead(sentence_ptr);
 	}
 
 	i = 0;
 	for( auto sentences_iter = document.sentences_rbegin(); sentences_iter != document.sentences_rend() && i < m_iDocTailSize; sentences_iter++, i++ ) {
 		TSSentenceConstPtr sentence_ptr = &(*sentences_iter);
-		if( IsSentenceHasReferenceToThePast(sentence_ptr) )
+		if( IsSentenceHasReferenceToThePast(sentence_ptr) ) {
+			if( m_bIsW2V ) {
+				TSIndexConstPtr index_ptr;
+				if( !sentence_ptr->GetIndex(SDataType::LEMMA, index_ptr) || !index_ptr->ConstructIndexEmbedding(m_pModel) )
+					continue;
+			}
 			doc_representation.AddTail(sentence_ptr);
+		}
 	}
 }
 
@@ -289,7 +306,11 @@ float TSDocumentExtractor::TSDocumentRepresentation::operator*(const TSDocumentR
 	float weight = 0.f;
 	for( auto tail_sentence : m_TailSentences ) {
 		for( auto head_sentence : other.m_HeadSentences ) {
-			weight = max(weight, *tail_sentence * *head_sentence);
+			if( m_bIsW2V ) {
+				weight = max(weight, tail_sentence->EmbeddingSimilarity(*head_sentence, SDataType::LEMMA));
+			} else {
+				weight = max(weight, *tail_sentence * *head_sentence);
+			}
 		}
 	}
 	return weight;
