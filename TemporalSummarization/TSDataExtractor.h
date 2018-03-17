@@ -14,6 +14,8 @@ public:
 	TSDataCollection();
 	~TSDataCollection();
 
+	bool InitDocsSerializationPath(const std::string &docs_serialization_path);
+	const std::string &GetDocsSerializationPath() const { return m_sSavedDocsPath; }
 	bool LoadData();
 	bool SaveData() const;
 	ReturnCode LoadDocument(const std::string &doc_id, TSDocumentPtr &doc_ptr);
@@ -22,8 +24,7 @@ public:
 
 
 private:
-	//const std::string m_sSavedDocsPath = "C:/!DEV/C++/TemporalSummarization/TemporalSummarizationVS/Data/Docs/";
-	const std::string m_sSavedDocsPath = "C:/Users/Misha/source/repos/TemporalSummarizationVS/Data/Docs/";
+	std::string m_sSavedDocsPath;
 	const std::string m_sFailedDocsFileName = "failed_docs.txt";
 	const std::string m_sSavedDocsFileName = "saved_docs.txt";
 
@@ -38,6 +39,7 @@ public:
 	~TSDataExtractor();
 
 	ReturnCode InitParameters(const std::initializer_list<float> &params) const;
+	ReturnCode InitDocsSerializationPath(const std::string &docs_serialization_path);
 	ReturnCode GetDocument(const std::string &doc_id, TSDocumentPtr document) const;
 	ReturnCode GetDocuments(const TSQuery &query, const std::initializer_list<float> &params, TSDocCollection &collection) const;
 

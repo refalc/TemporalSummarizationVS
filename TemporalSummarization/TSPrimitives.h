@@ -170,9 +170,8 @@ public:
 	
 	float Len() const;
 	float Normalize();
-	// m_Index must be sorted !!!
+	// m_Index must be sorted by value!!!
 	float operator*(const TSIndex &other) const;
-
 	void SaveToHistoryController(HistoryController &history) const;
 	void LoadFromHistoryController(HistoryController &history);
 
@@ -221,6 +220,7 @@ public:
 	float operator*(const TSIndexiesHolder &other) const;
 	float EmbeddingSimilarity(const TSIndexiesHolder &other, SDataType type) const;
 	float Similarity(const TSIndexiesHolder &other, SDataType type) const;
+	float PartSimilarity(const TSIndexiesHolder &other, SDataType type, int top_n) const;
 
 	void SaveToHistoryController(HistoryController &history) const;
 	void LoadFromHistoryController(HistoryController &history);
@@ -375,15 +375,15 @@ private:
 class TSTimeLineQueries
 {
 public:
-	bool AddQuery(int time_anchor, TSQuery &&query);
-	bool GetQuery(int time_anchor, TSQueryConstPtr &query) const;
+	bool AddQuery(int time_anchor, TSQuery &&query, const std::string &query_init_doc);
+	bool GetQuery(int time_anchor, TSQueryConstPtr &query, std::string &query_init_doc) const;
 
-	inline std::map<int, TSQuery>::iterator begin() { return m_Queries.begin(); }
-	inline std::map<int, TSQuery>::iterator end() { return m_Queries.end(); }
-	inline std::map<int, TSQuery>::const_iterator begin() const { return m_Queries.begin(); }
-	inline std::map<int, TSQuery>::const_iterator end() const { return m_Queries.end(); }
+	inline std::map<int, std::pair<TSQuery, std::string>>::iterator begin() { return m_Queries.begin(); }
+	inline std::map<int, std::pair<TSQuery, std::string>>::iterator end() { return m_Queries.end(); }
+	inline std::map<int, std::pair<TSQuery, std::string>>::const_iterator begin() const { return m_Queries.begin(); }
+	inline std::map<int, std::pair<TSQuery, std::string>>::const_iterator end() const { return m_Queries.end(); }
 private:
-	std::map<int, TSQuery> m_Queries;
+	std::map<int, std::pair<TSQuery, std::string>> m_Queries;
 };
 
 class IReplyProcessor

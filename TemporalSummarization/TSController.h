@@ -14,7 +14,7 @@ class TSController
 public:
 	TSController();
 	~TSController();
-	bool InitParameters(const Params &params, const std::string &answer_path, const std::string &w2v_path, int summary_size);
+	bool InitParameters(const Params &params, const std::string &answer_path, const std::string &docs_serialization_path, const std::string &w2v_path, int summary_size);
 	bool RunQueries(const std::vector<std::string> &queries) const;
 
 private:

@@ -19,6 +19,13 @@ TSDataExtractor::~TSDataExtractor()
 {
 
 }
+ReturnCode TSDataExtractor::InitDocsSerializationPath(const std::string &docs_serialization_path)
+{
+	if( !m_DataHistory.InitDocsSerializationPath(docs_serialization_path) )
+		return ReturnCode::TS_GENERAL_ERROR;
+
+	return ReturnCode::TS_NO_ERROR;
+}
 
 ReturnCode TSDataExtractor::InitParameters(const std::initializer_list<float> &params) const
 {
@@ -88,6 +95,17 @@ ReturnCode TSDataExtractor::RecvDocument(const std::string &doc_id, TSDocumentPt
 
 void TSDataExtractor::SortDocIndexies(TSDocumentPtr document) const
 {
+	// index must be sorted by term_id
+	auto MergeSimilarLemmas = [] (TSIndexPtr &index) {
+		if( index->GetType() != SDataType::LEMMA )
+			return;
+
+		/*for( auto placer_iter = index->begin(), runner_iter = index->begin(); runner_iter != index->end(); runner_iter++ ) {
+			if(  )
+		}*/
+
+	};
+
 	for( long type = (long)SDataType::LEMMA; type != (long)SDataType::FINAL_TYPE; type++ ) {
 		TSIndexPtr p_index;
 		if( document->GetIndex((SDataType)type, p_index) ) {
@@ -103,6 +121,9 @@ void TSDataExtractor::SortDocIndexies(TSDocumentPtr document) const
 				std::sort(p_index->begin(), p_index->end());
 		}
 	}
+
+	// todo merge similar pos for lemmas
+
 }
 
 bool TSDataExtractor::GetDocumentList(const TSQuery &query, const std::initializer_list<float> &params, std::vector<std::string> &doc_list) const
@@ -167,9 +188,8 @@ ReturnCode TSDataExtractor::GetDocuments(const TSQuery &query, const std::initia
 	return ReturnCode::TS_NO_ERROR;
 }
 
-TSDataCollection::TSDataCollection() {
-	if( !LoadData() )
-		CLogger::Instance()->WriteToLog("ERROR : Failed while load docs names");
+TSDataCollection::TSDataCollection() 
+{
 }
 TSDataCollection::~TSDataCollection()
 {
@@ -177,8 +197,26 @@ TSDataCollection::~TSDataCollection()
 		CLogger::Instance()->WriteToLog("ERROR : Failed while save docs names");
 }
 
+bool TSDataCollection::InitDocsSerializationPath(const std::string &docs_serialization_path)
+{
+	if( docs_serialization_path.empty() ) {
+		CLogger::Instance()->WriteToLog("ERROR : Failed while InitDocsSerializationPath");
+		return false;
+	}
+
+	m_sSavedDocsPath = docs_serialization_path;
+	if( !LoadData() ) {
+		CLogger::Instance()->WriteToLog("ERROR : Failed while load docs names");
+		return false;
+	}
+	return true;
+}
+
 ReturnCode TSDataCollection::LoadDocument(const std::string &doc_id, TSDocumentPtr &doc_ptr)
 {
+	if( m_sSavedDocsPath.empty() )
+		return ReturnCode::TS_GENERAL_ERROR;
+
 	auto probe = CProfiler::CProfilerProbe("load_doc");
 	if( m_FailedDocs.find(doc_id) != m_FailedDocs.end() )
 		return ReturnCode::TS_DOC_SKIPPED;

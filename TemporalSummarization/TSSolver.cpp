@@ -65,7 +65,8 @@ bool TSSolver::GetTemporalSummary(const TSTimeLineCollections &collections, cons
 		std::multimap<float, TSSentenceConstPtr> today_extacted;
 		std::pair<float, TSSentenceConstPtr> sentence_pair;
 		TSQueryConstPtr today_query;
-		if( !queries.GetQuery(day_collection.first, today_query) ) {
+		std::string query_doc_id;
+		if( !queries.GetQuery(day_collection.first, today_query, query_doc_id) ) {
 			return false;
 		}
 
@@ -85,7 +86,17 @@ bool TSSolver::GetTemporalSummary(const TSTimeLineCollections &collections, cons
 	auto iter_begin = all_extracted.rbegin(), iter_end = all_extracted.rbegin();
 	while( elements_num-- )
 		iter_end++;
+
 	sentences.assign(iter_begin, iter_end);
+	//sort by time
+	std::sort(sentences.begin(), sentences.end(), [] (const std::pair<float, TSSentenceConstPtr> &left, const std::pair<float, TSSentenceConstPtr> &right) {
+		std::string left_date, right_date;
+		if( !left.second->GetDocPtr()->GetMetaData(SMetaDataType::INT_DATE, left_date) ||
+			!right.second->GetDocPtr()->GetMetaData(SMetaDataType::INT_DATE, right_date) )
+			return false;
+
+		return std::stoi(left_date) < std::stoi(right_date);
+	});
 
 	return true;
 }

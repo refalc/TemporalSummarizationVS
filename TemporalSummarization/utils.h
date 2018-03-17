@@ -10,7 +10,7 @@
 #include <set>
 #include <chrono>
 #include <omp.h>  
-
+#include <queue>
 // consts
 constexpr int W2V_VECTOR_SIZE = 100;
 
@@ -108,6 +108,7 @@ public:
 	bool ReadArguments(int argc, const std::string *argv);
 	bool GetAnswerPath(std::string &answer) const;
 	bool GetW2VPath(std::string &w2v_path) const;
+	bool GetDocsSerializationPath(std::string &docs_serialization_path) const;
 	bool GetQueries(std::vector<std::string> &queries) const;
 	bool GetParams(Params &params) const;
 
@@ -122,6 +123,7 @@ private:
 	std::string m_sAnswerPath;
 	std::string m_sW2VPath;
 	std::string m_sConfigPath;
+	std::string m_sDocsSerializationPath;
 	std::vector<std::string> m_vQueries;
 	Params m_Params;
 };
@@ -215,3 +217,14 @@ public:
 private:
 	W2VModelType m_Model;
 };
+
+// for access to container in priority_queue
+template <class T, class S, class C>
+auto GetPrivateContainer(const std::priority_queue<T, S, C>& q) {
+	struct HackedQueue : private std::priority_queue<T, S, C> {
+		static const S& GetContainer(const std::priority_queue<T, S, C>& q) {
+			return q.*&HackedQueue::c;
+		}
+	};
+	return HackedQueue::GetContainer(q);
+}

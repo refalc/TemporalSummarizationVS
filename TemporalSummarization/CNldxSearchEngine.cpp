@@ -165,7 +165,7 @@ bool CNldxSearchEngine::CNldxReplyProcessor::ProcessReply(const ReplyDataType &r
 	if( reply_text.empty() )
 		return false;
 
-	CLogger::Instance()->WriteToLog("INFO : http reply = " + reply_text);
+	//CLogger::Instance()->WriteToLog("INFO : http reply = " + reply_text);
 	switch( reply.first ) {
 	case ReplyType::DOC: {
 		if( !ConstructDocFromString(std::get<TSDocumentPtr>(data), std::move(reply_text)) )
@@ -188,7 +188,7 @@ bool CNldxSearchEngine::CNldxReplyProcessor::ProcessReply(const ReplyDataType &r
 bool CNldxSearchEngine::CNldxReplyProcessor::ConstructDocFromString(TSDocumentPtr document, std::string &&doc_text) const
 {
 	doc_text = utils::converter::Utf8_to_cp1251(doc_text.data());
-	CLogger::Instance()->WriteToLog("INFO : http reply converted = " + doc_text);
+	//CLogger::Instance()->WriteToLog("INFO : http reply converted = " + doc_text);
 	doc_text.erase(std::remove_if(doc_text.begin(), doc_text.end(), [](const char &symb) {return symb == '\n' || symb == '\r'; }));
 
 	std::pair<int, int> tag_pair;

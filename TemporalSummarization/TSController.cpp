@@ -19,8 +19,11 @@ TSController::TSController() :
 TSController::~TSController()
 {}
 
-bool TSController::InitParameters(const Params &params, const std::string &answer_path, const std::string &w2v_path, int summary_size)
+bool TSController::InitParameters(const Params &params, const std::string &answer_path, const std::string &docs_serialization_path, const std::string &w2v_path, int summary_size)
 {
+	if( m_spDataExtractor->InitDocsSerializationPath(docs_serialization_path) != ReturnCode::TS_NO_ERROR )
+		return false;
+
 	if( !m_spQueryConstructor->InitDataExtractor(m_spDataExtractor.get()) )
 		return false;
 
@@ -180,16 +183,16 @@ bool TSController::SaveTemporalSummaryInFile(const std::vector<std::pair<float, 
 	pFile << "<story id=" << m_iStoryIDCounter++ << " init_doc_id=" << init_doc_id << ">" << std::endl;
 	pFile << "<queries>" << std::endl;
 	for( const auto &query_pair : queries ) {
-		pFile << "<query int_date=" << query_pair.first << ">" << std::endl;
+		pFile << "<query int_date=" << query_pair.first << " query_doc_id=" << query_pair.second.second << ">" << std::endl;
 
 		TSIndexConstPtr lemma_index_ptr, termin_index_ptr;
-		if( !query_pair.second.GetIndex(SDataType::LEMMA, lemma_index_ptr) )
+		if( !query_pair.second.first.GetIndex(SDataType::LEMMA, lemma_index_ptr) )
 			return false;
 		pFile << "<lemmas>" << std::endl;
 		pFile << lemma_index_ptr->GetString() << std::endl;
 		pFile << "</lemmas>" << std::endl;
 
-		if( query_pair.second.GetIndex(SDataType::TERMIN, termin_index_ptr) ) {
+		if( query_pair.second.first.GetIndex(SDataType::TERMIN, termin_index_ptr) ) {
 			pFile << "<termins>" << std::endl;
 			pFile << termin_index_ptr->GetString() << std::endl;
 			pFile << "</termins>" << std::endl;
@@ -255,7 +258,7 @@ bool TSController::ConstructTimeLinesQueries(TSQuery &&init_query, const std::st
 			return false;
 		p_index->ConstructIndexEmbedding(m_spModel.get());
 	}
-	if( !queries.AddQuery(query_int_date, std::move(init_query)) )
+	if( !queries.AddQuery(query_int_date, std::move(init_query), init_doc_id) )
 		return false;
 
 	if( m_Params.m_DocImportance ) {
@@ -283,7 +286,7 @@ bool TSController::ConstructTimeLinesQueries(TSQuery &&init_query, const std::st
 			}
 
 			int query_int_date = GetQueryDate(doc_id, collections);
-			if( !queries.AddQuery(query_int_date, std::move(query)) )
+			if( !queries.AddQuery(query_int_date, std::move(query), doc_id) )
 				return false;
 		}
 	} 

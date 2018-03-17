@@ -9,22 +9,25 @@
 
 int main(int argc, char *argv[])
 {
+	//omp_set_num_threads(1);
 	CLogger::Instance()->WriteToLog("Start perf check");
 	auto probe = CProfiler::CProfilerProbe("all");
 	CArgReader arg_reader;
 	if( arg_reader.ReadArguments(argc, argv) ) {
 		TSController controller;
 		Params input_params;
-		std::string input_answer_path, input_w2v_path;
+		std::string input_answer_path, input_w2v_path, docs_serialization_path;
 		std::vector<std::string> input_queries;
 
 		int summary_size = 15;
-		if( !arg_reader.GetParams(input_params) || !arg_reader.GetAnswerPath(input_answer_path) || !arg_reader.GetW2VPath(input_w2v_path) || !arg_reader.GetQueries(input_queries) ) {
+		if( !arg_reader.GetParams(input_params) || !arg_reader.GetAnswerPath(input_answer_path) ||
+			!arg_reader.GetW2VPath(input_w2v_path) || !arg_reader.GetQueries(input_queries)  ||
+			!arg_reader.GetDocsSerializationPath(docs_serialization_path) ) {
 			CLogger::Instance()->WriteToLog("ERROR : while getting parameters from arg reader");
 			return -1;
 		}
 
-		if( !controller.InitParameters(input_params, input_answer_path, input_w2v_path, summary_size) ) {
+		if( !controller.InitParameters(input_params, input_answer_path, docs_serialization_path, input_w2v_path, summary_size) ) {
 			CLogger::Instance()->WriteToLog("ERROR : while init parameters");
 			return -1;
 		}
@@ -40,7 +43,7 @@ int main(int argc, char *argv[])
 		if( arg_reader.ReadArguments((int)test_args.size(), test_args.data()) ) {
 			TSController controller;
 			Params input_params;
-			std::string input_answer_path, input_w2v_path;
+			std::string input_answer_path, input_w2v_path, docs_serialization_path;
 			std::vector<std::string> input_queries;
 
 			int summary_size = 15;
@@ -49,7 +52,7 @@ int main(int argc, char *argv[])
 				return -1;
 			}
 
-			if( !controller.InitParameters(input_params, input_answer_path, input_w2v_path, summary_size) ) {
+			if( !controller.InitParameters(input_params, docs_serialization_path, input_answer_path, input_w2v_path, summary_size) ) {
 				CLogger::Instance()->WriteToLog("ERROR : while init parameters");
 				return -1;
 			}
@@ -89,12 +92,12 @@ int main(int argc, char *argv[])
 			input_params.m_QEDEInitQuerrySize = 5;
 			input_params.m_QEDoubleExtension = true;
 
-			std::string input_answer_path = "..//Data//answer.xml", input_w2v_path = "../w2v.bin";
+			std::string input_answer_path = "..//Data//answer.xml", input_w2v_path = "../w2v.bin", doc_ser_folder;
 			std::vector<std::string> input_queries = { "10839989" };
 
 			int summary_size = input_params.m_MaxAnswerSize;
 	
-			if( !controller.InitParameters(input_params, input_answer_path, input_w2v_path, summary_size) )
+			if( !controller.InitParameters(input_params, input_answer_path, doc_ser_folder, input_w2v_path, summary_size) )
 				return -1;
 
 			if( !controller.RunQueries(input_queries) )

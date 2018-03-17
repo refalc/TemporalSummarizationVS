@@ -346,6 +346,52 @@ float TSIndexiesHolder::Similarity(const TSIndexiesHolder &other, SDataType type
 	return *curr_index * *other_index;
 }
 
+float TSIndexiesHolder::PartSimilarity(const TSIndexiesHolder &other, SDataType type, int top_n) const
+{
+	// very expensive
+	TSIndexConstPtr curr_index, other_index;
+	if( !GetIndex(type, curr_index) || !other.GetIndex(type, other_index) )
+		return 0.f;
+
+	using queue_type = std::pair<float, int>;
+	std::priority_queue<queue_type, std::vector<queue_type>, std::greater<queue_type>> first_top, second_top;
+	auto CreateQueue = [top_n] (std::priority_queue<queue_type, std::vector<queue_type>, std::greater<queue_type>> &queue_top, const TSIndexConstPtr &index) {
+		for( int i = 0; i < index->size(); i++ ) {
+			const auto &index_item_iter = (index->begin() + i);
+			if( queue_top.size() < top_n ) {
+				queue_top.push(std::make_pair(index_item_iter->GetWeight(), i));
+			}
+			else if( index_item_iter->GetWeight() > queue_top.top().first ) {
+				queue_top.pop();
+				queue_top.push(std::make_pair(index_item_iter->GetWeight(), i));
+			}
+		}
+	};
+
+	CreateQueue(first_top, curr_index);
+	CreateQueue(second_top, other_index);
+
+	float value = 0.f;
+	for( const auto &first_elem : GetPrivateContainer<queue_type, std::vector<queue_type>, std::greater<queue_type>>(first_top) ) {
+		const auto &first_index_item_iter = curr_index->begin() + first_elem.second;
+		for( const auto &second_elem : GetPrivateContainer<queue_type, std::vector<queue_type>, std::greater<queue_type>>(second_top) ) {
+			const auto &second_index_item_iter = other_index->begin() + second_elem.second;
+			if( first_index_item_iter->GetID() == second_index_item_iter->GetID() ) {
+				value += first_elem.first * second_elem.first;
+			}
+		}
+	}
+
+	auto QueueLen = [] (const std::priority_queue<queue_type, std::vector<queue_type>, std::greater<queue_type>> &queue) {
+		float len = 0.f;
+		for( const auto &elem : GetPrivateContainer<queue_type, std::vector<queue_type>, std::greater<queue_type>>(queue) )
+			len += elem.first * elem.first;
+		return sqrt(len);
+	};
+	value /= QueueLen(first_top) * QueueLen(second_top);
+	return value;
+}
+
 TSSentence::TSSentence(const TSSentence &other)
 {
 	*this = other;
@@ -636,7 +682,7 @@ void TSTimeLineCollections::EraseCollectionsWithSizeLessThen(int size)
 	}
 }
 
-bool TSTimeLineQueries::AddQuery(int time_anchor, TSQuery &&query)
+bool TSTimeLineQueries::AddQuery(int time_anchor, TSQuery &&query, const std::string &query_init_doc)
 {
 	auto queries_iter = m_Queries.lower_bound(time_anchor);
 	if( queries_iter != m_Queries.end() && !m_Queries.key_comp()(time_anchor, queries_iter->first) )
@@ -651,29 +697,34 @@ bool TSTimeLineQueries::AddQuery(int time_anchor, TSQuery &&query)
 	}
 	
 	
-	m_Queries.emplace_hint(queries_iter, time_anchor, std::move(query));
+	m_Queries.emplace_hint(queries_iter, time_anchor, std::make_pair(std::move(query), query_init_doc));
 
 	return true;
 }
 
-bool TSTimeLineQueries::GetQuery(int time_anchor, TSQueryConstPtr &query) const
+bool TSTimeLineQueries::GetQuery(int time_anchor, TSQueryConstPtr &query, std::string &query_init_doc) const
 {
 	if( m_Queries.empty() )
 		return false;
 
 	auto queries_iter = m_Queries.lower_bound(time_anchor);
-	if( queries_iter != m_Queries.end() && (!m_Queries.key_comp()(time_anchor, queries_iter->first) || queries_iter == m_Queries.begin()) )
-		query = &queries_iter->second;
-	else if( queries_iter == m_Queries.end() )
-		query = &(m_Queries.rbegin()->second);
-	else {
+	if( queries_iter != m_Queries.end() && (!m_Queries.key_comp()(time_anchor, queries_iter->first) || queries_iter == m_Queries.begin()) ) {
+		query = &queries_iter->second.first;
+		query_init_doc = queries_iter->second.second;
+	} else if( queries_iter == m_Queries.end() ) {
+		query = &(m_Queries.rbegin()->second).first;
+		query_init_doc = (m_Queries.rbegin()->second).second;
+	} else {
 		auto previous_query = queries_iter;
 		previous_query--;
 
-		if( queries_iter->first - time_anchor > (time_anchor - previous_query->first) )
-			query = &previous_query->second;
-		else
-			query = &queries_iter->second;
+		if( queries_iter->first - time_anchor > (time_anchor - previous_query->first) ) {
+			query = &previous_query->second.first;
+			query_init_doc = previous_query->second.second;
+		} else {
+			query = &queries_iter->second.first;
+			query_init_doc = queries_iter->second.second;
+		}
 	}
 
 	return true;

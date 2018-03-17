@@ -202,7 +202,7 @@ bool CArgReader::ReadArguments(int argc, const std::string *argv)
 	CLogger::Instance()->WriteToLog("Reading args...");
 	try {
 		int last_arg_pos = 1;
-		if (argc < 3) {
+		if (argc < 4) {
 			CLogger::Instance()->WriteToLog("Incorrect command arguments");
 			return false;
 		}
@@ -228,7 +228,6 @@ bool CArgReader::ReadArguments(int argc, const std::string *argv)
 		for (int i = 0; i < rest_params / 2; i++) {
 			std::string cmd = argv[last_arg_pos + i * 2],
 				data = argv[last_arg_pos + i * 2 + 1];
-
 			if (cmd.empty() || data.empty()) {
 				CLogger::Instance()->WriteToLog("Incorrect command arguments");
 				return false;
@@ -260,7 +259,13 @@ bool CArgReader::ReadArguments(int argc, const std::string *argv)
 					return false;
 				}
 			}
-			else {
+			else if( !cmd.compare("-d") ) {
+				if( !m_sDocsSerializationPath.empty() ) {
+					CLogger::Instance()->WriteToLog("Incorrect command arguments");
+					return false;
+				}
+				m_sDocsSerializationPath = data;
+			} else {
 				CLogger::Instance()->WriteToLog("Incorrect command arguments");
 				return false;
 			}
@@ -438,6 +443,15 @@ bool CArgReader::GetW2VPath(std::string &w2v_path) const
 		return false;
 
 	w2v_path = m_sW2VPath;
+	return true;
+}
+
+bool CArgReader::GetDocsSerializationPath(std::string &docs_serialization_path) const
+{
+	if( m_sDocsSerializationPath.empty() )
+		return false;
+
+	docs_serialization_path = m_sDocsSerializationPath;
 	return true;
 }
 
