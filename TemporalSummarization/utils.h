@@ -67,6 +67,12 @@ struct Params
 	double m_SentSimThreshold;
 	bool m_DIW2VEnable;
 	bool m_SlvW2VEnable;
+	bool m_DIIsClusterization;
+	bool m_DIIsPyramidFeature;
+	bool m_DIIsLexRank;
+	double m_DIClusterizationSimThreshold;
+	double m_DIMaxHourDiff;
+	int m_DITopKValue;
 };
 
 class CLogger

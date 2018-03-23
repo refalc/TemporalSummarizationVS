@@ -74,7 +74,9 @@ bool TSController::InitParameters(const Params &params, const std::string &answe
 	*/
 	auto doc_extractor_params = { (float)m_Params.m_PDocCount, (float)m_Params.m_PSoftOr, /*todo add new param or delete*/0.f,
 		                          (float)m_Params.m_DIMinLinkScore, (float)m_Params.m_DIPowerMethodDFactor, (float)m_Params.m_DIDocBoundary,
-		                          (float)m_Params.m_DocImportance, (float)m_Params.m_PTemporalMode, (float)m_Params.m_DIW2VEnable };
+		                          (float)m_Params.m_DocImportance, (float)m_Params.m_PTemporalMode, (float)m_Params.m_DIW2VEnable, (float)m_Params.m_DIIsClusterization,
+								  (float)m_Params.m_DIIsPyramidFeature, (float)m_Params.m_DIIsLexRank, (float)m_Params.m_DIClusterizationSimThreshold,
+								  (float)m_Params.m_DIMaxHourDiff, (float)m_Params.m_DITopKValue };
 	if( !m_spDocExtractor->InitParameters(doc_extractor_params) )
 		return false;
 

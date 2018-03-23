@@ -423,6 +423,18 @@ bool CArgReader::ReadConfig(std::string path_to_config)
 		return false;
 	if( !GetDataFromTag(content, "SlvW2VEnable", cur_params.m_SlvW2VEnable) )
 		return false;
+	if( !GetDataFromTag(content, "DIIsClusterization", cur_params.m_DIIsClusterization) )
+		return false;
+	if( !GetDataFromTag(content, "DIIsPyramidFeature", cur_params.m_DIIsPyramidFeature) )
+		return false;
+	if( !GetDataFromTag(content, "DIIsLexRank", cur_params.m_DIIsLexRank) )
+		return false;
+	if( !GetDataFromTag(content, "DIClusterizationSimThreshold", cur_params.m_DIClusterizationSimThreshold) )
+		return false;
+	if( !GetDataFromTag(content, "DIMaxHourDiff", cur_params.m_DIMaxHourDiff) )
+		return false;
+	if( !GetDataFromTag(content, "DITopKValue", cur_params.m_DITopKValue) )
+		return false;
 
 	m_Params = cur_params;
 	return true;

@@ -669,11 +669,11 @@ void TSTimeLineCollections::EraseCollectionsWithSizeLessThen(int size)
 			candidates_for_delete.push_back(day_collection_iter);
 
 			//delete top doc from collection
-			for( const auto &doc : day_collection_iter->second ) {
+			/*for( const auto &doc : day_collection_iter->second ) {
 				auto iter = std::find(m_TopDocuments.begin(), m_TopDocuments.end(), doc.first);
 				if( iter != m_TopDocuments.end() )
 					m_TopDocuments.erase(iter);
-			}
+			}*/
 		}
 	}
 

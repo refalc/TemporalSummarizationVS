@@ -96,7 +96,9 @@ private:
 	void ClusterizationProcess(std::vector<TSDocumentRepresentation> &docs_representations, std::vector<TSDocumentsCluster> &clusters, std::vector<std::vector<float>> &clusters_sim_matrix) const;
 	void ConstructClustersSimilarityMatrix(const std::vector<TSDocumentsCluster> &clusters, const std::vector<TSDocumentRepresentation> &docs_representations, const std::vector<std::vector<float>> &similarity_matrix, std::vector<std::vector<float>> &clusters_similarity_matrix) const;
 	void ComputeStartImportanceVector(const std::vector<TSDocumentsCluster> &clusters, int docs_size, std::vector<float> &start_importances) const;
-
+	float CalculateHourSim(float h1, float h2) const;
+	void NormalizeImportanceVector(std::vector<float> &importances) const;
+	bool PrintTopDocs(const TSDocCollection &whole_collection, const std::map<std::string, float> doc_to_importance, const std::vector<std::string> top_docs) const;
 private:
 	int m_iDocCount;
 	float m_fSoftOr;
@@ -104,13 +106,18 @@ private:
 	float m_fMinLinkScore;
 	float m_fPowerDFactor;
 	float m_fDocumentImportanceBoundary;
-	float m_fClusterizationSimThreshold;
 	bool m_bDocImportance;
 	bool m_bTemporalMode;
 	bool m_bIsW2V;
+	bool m_bPyramidFeature;
+	bool m_bClusterization;
+	bool m_bLexRank;
+	float m_fClusterizationSimThreshold;
+	float m_fMaxHourDiff;
+	int m_iTopKValue;
+
 	int m_iDocTailSize;
 	int m_iDocHeadSize;
-	const int m_iTopKValue = 20;
 
 	// for reports only
 	static int m_iGraphsCount;

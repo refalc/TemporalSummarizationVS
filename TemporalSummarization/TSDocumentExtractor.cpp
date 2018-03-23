@@ -4,12 +4,20 @@
 #include <algorithm>
 #include <numeric>
 
+#define _USE_MATH_DEFINES
+#include <math.h>
+
 int TSDocumentExtractor::m_iGraphsCount = 0;
 
 TSDocumentExtractor::TSDocumentExtractor() :
 	m_iDocTailSize(4),
 	m_iDocHeadSize(3),
-	m_fClusterizationSimThreshold(0.25f)
+	m_fClusterizationSimThreshold(0.25f),
+	m_fMaxHourDiff(12.f),
+	m_bClusterization(true),
+	m_bPyramidFeature(true),
+	m_bLexRank(true),
+	m_iTopKValue(20)
 {
 }
 
@@ -20,7 +28,7 @@ TSDocumentExtractor::~TSDocumentExtractor()
 
 bool TSDocumentExtractor::InitParameters(const std::initializer_list<float> &params)
 {
-	constexpr int parameters_size = 9;
+	constexpr int parameters_size = 15;
 	if( params.size() < parameters_size )
 		return false;
 
@@ -32,13 +40,23 @@ bool TSDocumentExtractor::InitParameters(const std::initializer_list<float> &par
 		  importance_boundary = params.begin()[5];
 	bool is_doc_importance = (bool)params.begin()[6],
 		 is_temporal = (bool)params.begin()[7],
-		 is_w2v = (bool)params.begin()[8];
+		 is_w2v = (bool)params.begin()[8],
+		 is_clusterization = (bool)params.begin()[9],
+		 is_pyramid = (bool)params.begin()[10],
+		 is_lexrank = (bool)params.begin()[11];
+
+	float clusterization_sim_threshold = params.begin()[12],
+		  max_hour_diff = params.begin()[13];
+
+	int top_k_value = params.begin()[14];
 
 	if( doc_count < 0 || soft_or < 0.0f || soft_or > 1.f ||
 		min_doc_rank < 0.0f || min_doc_rank > 1.0f ||
 		min_link_score < 0.0f || min_link_score > 1.0f ||
 		power_d_factor < 0.0f || power_d_factor > 1.0f ||
-		importance_boundary < 0.0f || importance_boundary > 1.0f)
+		importance_boundary < 0.0f || importance_boundary > 1.0f ||
+		clusterization_sim_threshold < 0.0f || clusterization_sim_threshold > 1.0f ||
+		max_hour_diff < 0.0f || top_k_value < 0 )
 		return false;
 
 	m_iDocCount = doc_count;
@@ -50,8 +68,23 @@ bool TSDocumentExtractor::InitParameters(const std::initializer_list<float> &par
 	m_bDocImportance = is_doc_importance;
 	m_bTemporalMode = is_temporal;
 	m_bIsW2V = is_w2v;
+	m_bClusterization = is_clusterization;
+	m_bPyramidFeature = is_pyramid;
+	m_bLexRank = is_lexrank;
+	m_fClusterizationSimThreshold = clusterization_sim_threshold;
+	m_fMaxHourDiff = max_hour_diff;
+	m_iTopKValue = top_k_value;
 
 	return true;
+}
+
+bool TSDocumentExtractor::PrintTopDocs(const TSDocCollection &whole_collection, const std::map<std::string, float> doc_to_importance, const std::vector<std::string> top_docs) const
+{
+	std::fstream pFile;
+	pFile.open("TopDoc.xml", std::ios::app);
+	auto PrintDoc = [] (const TSDocument &doc) {
+		
+	};
 }
 
 bool TSDocumentExtractor::ConstructTimeLineCollections(const TSQuery &query, TSTimeLineCollections &collections)
@@ -71,11 +104,13 @@ bool TSDocumentExtractor::ConstructTimeLineCollections(const TSQuery &query, TST
 			std::map<std::string, float> doc_to_importance;
 			std::vector<std::string> top_docs;
 			ComputeDocsImportance(whole_collection, doc_to_importance, top_docs);
+			// Print top docs
 
+			//
+			collections.InitDocumentsImportanceData(std::move(doc_to_importance), std::move(top_docs));
 			if( !SeparateCollectionByTime(whole_collection, collections) )
 				return false;
 
-			collections.InitDocumentsImportanceData(std::move(doc_to_importance), std::move(top_docs));
 		}
 		else if( !SeparateCollectionByTime(whole_collection, collections) )
 			return false;
@@ -132,41 +167,84 @@ void TSDocumentExtractor::ComputeDocsImportance(const TSDocCollection &whole_col
 	std::vector<TSDocumentRepresentation> docs_representations;
 	ConstructDocumentsRepresentations(whole_collection, docs_representations);
 
-	std::vector<std::vector<float>> docs_pyramid_similarity_matrix;
-	ConstructSimilarityMatrix(docs_representations, docs_pyramid_similarity_matrix);
+	if( docs_representations.empty() )
+		return;
 
-	
-	std::vector<TSDocumentsCluster> clusters;
-	std::vector<std::vector<float>> clusters_similarity_matrix;
+	bool is_reporting_graph = true;
+	std::vector<std::vector<float>> report_similarity_matrix;
+
 	std::vector<float> importances, start_importances;
-	ClusterizationProcess(docs_representations, clusters, clusters_similarity_matrix);
+	start_importances.resize(docs_representations.size());
+	std::fill(start_importances.begin(), start_importances.end(), m_fPowerDFactor / docs_representations.size());
+	//__debugbreak();
+	if( m_bClusterization ) {
+		std::vector<TSDocumentsCluster> clusters;
+		std::vector<std::vector<float>> clusters_similarity_matrix;
 
-	std::vector<std::vector<float>> clusters_pyramid_similarity_matrix;
-	ConstructClustersSimilarityMatrix(clusters, docs_representations, docs_pyramid_similarity_matrix, clusters_pyramid_similarity_matrix);
-	ComputeStartImportanceVector(clusters, (int)docs_representations.size(), start_importances);
-	PowerMethod(clusters_similarity_matrix, start_importances, importances);
+		ClusterizationProcess(docs_representations, clusters, clusters_similarity_matrix);
+		ComputeStartImportanceVector(clusters, (int)docs_representations.size(), start_importances);
 
-	for( int i = 0; i < importances.size(); i++ )
-		clusters[i].SetImportance(importances[i]);
+		if( m_bPyramidFeature ) {
+			std::vector<std::vector<float>> docs_pyramid_similarity_matrix, clusters_pyramid_similarity_matrix;
+			ConstructSimilarityMatrix(docs_representations, docs_pyramid_similarity_matrix);
+			ConstructClustersSimilarityMatrix(clusters, docs_representations, docs_pyramid_similarity_matrix, clusters_pyramid_similarity_matrix);
+			PowerMethod(clusters_pyramid_similarity_matrix, start_importances, importances);
+			if( is_reporting_graph )
+				report_similarity_matrix = clusters_pyramid_similarity_matrix;
+		} else {
+			if( m_bLexRank )
+				PowerMethod(clusters_similarity_matrix, start_importances, importances);
+			else {
+				importances = start_importances;
+			}
 
-	std::sort(clusters.begin(), clusters.end(), [](const TSDocumentsCluster &lhs, const TSDocumentsCluster &rhs) {
-		return lhs.GetImportance() > rhs.GetImportance();
-	});
+			if( is_reporting_graph )
+				report_similarity_matrix = clusters_similarity_matrix;
+		}
 
-	for( const auto doc_repr : docs_representations )
-		doc_to_importance.insert(doc_repr.GetPair());
+		NormalizeImportanceVector(importances);
+		for( int i = 0; i < importances.size(); i++ )
+			clusters[i].SetImportance(importances[i]);
 
-	for( const auto &cluster : clusters ) {
-		if( cluster.GetImportance() > m_fDocumentImportanceBoundary ) {
-			CLogger::Instance()->WriteToLog("INFO : topdoc = " + cluster.GetCentroidDoc()->GetDocPtr()->GetDocID() + " i = " + std::to_string(cluster.GetImportance()));
-			top_docs.push_back(cluster.GetCentroidDoc()->GetDocPtr()->GetDocID());
+		std::sort(clusters.begin(), clusters.end(), [] (const TSDocumentsCluster &lhs, const TSDocumentsCluster &rhs) {
+			return lhs.GetImportance() > rhs.GetImportance();
+		});
+
+		for( const auto doc_repr : docs_representations )
+			doc_to_importance.insert(doc_repr.GetPair());
+
+		for( const auto &cluster : clusters ) {
+			if( cluster.GetImportance() > m_fDocumentImportanceBoundary ) {
+				CLogger::Instance()->WriteToLog("INFO : topdoc = " + cluster.GetCentroidDoc()->GetDocPtr()->GetDocID() + " i = " + std::to_string(cluster.GetImportance()));
+				top_docs.push_back(cluster.GetCentroidDoc()->GetDocPtr()->GetDocID());
+			}
+		}
+
+		if( is_reporting_graph )
+			TSDocumentExtractor::ReportGraph(report_similarity_matrix, importances, clusters);
+
+	} else {
+		std::vector<std::vector<float>> docs_pyramid_similarity_matrix;
+		ConstructSimilarityMatrix(docs_representations, docs_pyramid_similarity_matrix);
+		PowerMethod(docs_pyramid_similarity_matrix, start_importances, importances);
+		NormalizeImportanceVector(importances);
+
+		for( int i = 0; i < importances.size(); i++ ) {
+			docs_representations[i].SetImportance(importances[i]);
+			doc_to_importance.insert(docs_representations[i].GetPair());
+		}
+
+		std::sort(docs_representations.begin(), docs_representations.end(), [] (const TSDocumentRepresentation &lhs, const TSDocumentRepresentation &rhs) {
+			return lhs.GetImportance() > rhs.GetImportance();
+		});
+
+		for( const auto &doc : docs_representations ) {
+			if( doc.GetImportance() > m_fDocumentImportanceBoundary ) {
+				CLogger::Instance()->WriteToLog("INFO : topdoc = " + doc.GetDocPtr()->GetDocID() + " i = " + std::to_string(doc.GetImportance()));
+				top_docs.push_back(doc.GetDocPtr()->GetDocID());
+			}
 		}
 	}
-
-	//
-	TSDocumentExtractor::ReportGraph(clusters_similarity_matrix, importances, clusters);
-	//
-	
 }
 
 void TSDocumentExtractor::ConstructSimilarityMatrix(const std::vector<TSDocumentRepresentation> &docs_representations, std::vector<std::vector<float>> &similarity_matrix) const
@@ -216,6 +294,9 @@ void TSDocumentExtractor::PowerMethod(const std::vector<std::vector<float>> &sim
 		max_dif = 0;
 		// calculate importance_next
 		for( int i = 0; i < size; i++ ) {
+			if( importance_last[i] < FLT_EPSILON )
+				continue;
+
 			importance_next[i] = m_fPowerDFactor / size;
 
 			for( auto j = 0; j < size; j++ ) {
@@ -231,16 +312,7 @@ void TSDocumentExtractor::PowerMethod(const std::vector<std::vector<float>> &sim
 		importance_last.swap(importance_next);
 	}
 
-	float max_value = *std::max_element(importance_last.begin(), importance_last.end()),
-		min_value = *std::min_element(importance_last.begin(), importance_last.end()),
-		diff = max_value - min_value;
-	if( max_value > m_fPowerDFactor / size && diff > 0 ) {
-		for( auto &elem : importance_last )
-			elem = (elem - min_value) / diff;
-
-		importances.swap(importance_last);
-	} else
-		std::fill(importances.begin(), importances.end(), 0.f);
+	importances.swap(importance_last);
 }
 
 void TSDocumentExtractor::ReportGraph(const std::vector<std::vector<float>> &similarity_matrix, const std::vector<float> &importances, const std::vector<TSDocumentsCluster> &clusters)
@@ -298,6 +370,31 @@ void TSDocumentExtractor::ReportGraph(const std::vector<std::vector<float>> &sim
 		}
 	}
 }
+void TSDocumentExtractor::NormalizeImportanceVector(std::vector<float> &importances) const
+{
+	float max_value = *std::max_element(importances.begin(), importances.end()),
+		min_value = 1.;
+	for( int i = 0; i < importances.size(); i++ ) {
+		if( importances[i] < FLT_EPSILON )
+			continue;
+		if( importances[i] < min_value )
+			min_value = importances[i];
+	}
+
+	float diff = max_value - min_value;
+	if( max_value > m_fPowerDFactor / importances.size() && diff > 0 ) {
+		for( auto &elem : importances )
+			if( elem > FLT_EPSILON )
+				elem = (elem - min_value) / diff;
+	}
+}
+
+float TSDocumentExtractor::CalculateHourSim(float h1, float h2) const
+{
+	float sim = std::max(0.f, 1.f - fabs(h1 - h2) / m_fMaxHourDiff);
+	float log_sim = std::log(1.f + sim) / std::log(2.f);
+	return log_sim;
+}
 
 void TSDocumentExtractor::ClusterizationProcess(std::vector<TSDocumentRepresentation> &docs_representations, std::vector<TSDocumentsCluster> &clusters, std::vector<std::vector<float>> &clusters_sim_matrix) const
 {
@@ -313,13 +410,14 @@ void TSDocumentExtractor::ClusterizationProcess(std::vector<TSDocumentRepresenta
 	for( auto &doc_repr : docs_representations )
 		clusters.emplace_back(&doc_repr);
 
-	int window = 6; // 6 hours window
+	//__debugbreak();
 	float max_simm = 0;
 	for( int i = 0; i < size; i++ ) {
 		for( int j = 0; j < i; j++ ) {
-			if( abs(clusters[i].GetCentroidHourDate() - clusters[j].GetCentroidHourDate()) > window )
+			float hour_sim = CalculateHourSim((float)clusters[i].GetCentroidHourDate(), (float)clusters[j].GetCentroidHourDate());
+			if( hour_sim < FLT_EPSILON )
 				continue;
-			float sim = clusters[i].GetClusterCentroid() * clusters[j].GetClusterCentroid();
+			float sim = clusters[i].GetClusterCentroid() * clusters[j].GetClusterCentroid() * hour_sim;
 			clusters_sim_matrix[i][j] = sim;
 			clusters_sim_matrix[j][i] = sim;
 			max_simm = std::max(max_simm, sim);
@@ -354,12 +452,15 @@ void TSDocumentExtractor::ClusterizationProcess(std::vector<TSDocumentRepresenta
 
 			for( int i = 0; i < size; i++ ) {
 				float sim = 0.f;
-				int hour_diff = abs(clusters[i].GetCentroidHourDate() - clusters[max_sim_pair.first].GetCentroidHourDate());
-				if( clusters[i].IsActive() && i != max_sim_pair.first && hour_diff <= window )
-					sim = clusters[max_sim_pair.first].GetClusterCentroid() * clusters[i].GetClusterCentroid();
+				float hour_sim = CalculateHourSim((float)clusters[i].GetCentroidHourDate(), (float)clusters[max_sim_pair.first].GetCentroidHourDate());
+				if( clusters[i].IsActive() && i != max_sim_pair.first && hour_sim >= FLT_EPSILON )
+					sim = clusters[max_sim_pair.first].GetClusterCentroid() * clusters[i].GetClusterCentroid() * hour_sim;
 
 				clusters_sim_matrix[i][max_sim_pair.first] = sim;
 				clusters_sim_matrix[max_sim_pair.first][i] = sim;
+
+				clusters_sim_matrix[i][max_sim_pair.second] = 0.f;
+				clusters_sim_matrix[max_sim_pair.second][i] = 0.f;
 			}
 		}
 	}
@@ -373,14 +474,14 @@ void TSDocumentExtractor::ClusterizationProcess(std::vector<TSDocumentRepresenta
 
 void TSDocumentExtractor::ComputeStartImportanceVector(const std::vector<TSDocumentsCluster> &clusters, int docs_size, std::vector<float> &start_importances) const
 {
-	start_importances.resize(clusters.size());
-	std::fill(start_importances.begin(), start_importances.end(), m_fPowerDFactor / docs_size);
-	if( true/*todo*/ ) {
-		for( int i = 0; i < clusters.size(); i++ ) {
-			start_importances[i] *= (float)clusters[i].size();
-		}
-	} 
+	for( int i = 0; i < clusters.size(); i++ ) {
+		if( clusters[i].size() == 0 )
+			start_importances[i] = 0.f;
+
+		start_importances[i] *= std::log(M_E + (float)clusters[i].size());
+	}
 }
+
 void TSDocumentExtractor::ConstructClustersSimilarityMatrix(const std::vector<TSDocumentsCluster> &clusters, const std::vector<TSDocumentRepresentation> &docs_representations, const std::vector<std::vector<float>> &similarity_matrix, std::vector<std::vector<float>> &clusters_similarity_matrix) const
 {
 	const size_t cluster_size = clusters.size();
@@ -397,7 +498,7 @@ void TSDocumentExtractor::ConstructClustersSimilarityMatrix(const std::vector<TS
 			if( sim > 0.f ) {
 				int i_cluster_id = docs_representations[i].GetClusterLabel(),
 					j_cluster_id = docs_representations[j].GetClusterLabel();
-				if( j_cluster_id != i_cluster_id )
+				if( (j_cluster_id != i_cluster_id) && clusters[i_cluster_id].IsActive() && clusters[j_cluster_id].IsActive() )
 					clusters_similarity_matrix[i_cluster_id][j_cluster_id] += sim;
 			}
 		}

@@ -53,6 +53,7 @@ ReturnCode TSDataExtractor::GetDocument(const std::string &doc_id, TSDocumentPtr
 			load_result = m_DataHistory.LoadDocument(doc_id, document);
 			if( load_result == ReturnCode::TS_GENERAL_ERROR ) {
 				recv_result = RecvDocument(doc_id, document);
+				SortDocIndexies(document);
 			} 
 		}
 	} 
@@ -60,8 +61,12 @@ ReturnCode TSDataExtractor::GetDocument(const std::string &doc_id, TSDocumentPtr
 	if( load_result == ReturnCode::TS_NO_ERROR || load_result == ReturnCode::TS_DOC_SKIPPED )
 		return load_result;
 
-	if( load_result == ReturnCode::TS_GENERAL_ERROR )
+	if( load_result == ReturnCode::TS_GENERAL_ERROR ) {
+		if( recv_result == ReturnCode::TS_NO_ERROR )
+			m_DataHistory.SaveDocument(doc_id, document);
+
 		return recv_result;
+	}
 }
 
 ReturnCode TSDataExtractor::RecvDocument(const std::string &doc_id, TSDocumentPtr document) const
@@ -87,28 +92,44 @@ ReturnCode TSDataExtractor::RecvDocument(const std::string &doc_id, TSDocumentPt
 	}
 
 	document->InitDocID(doc_id);
-	SortDocIndexies(document);
-	m_DataHistory.SaveDocument(doc_id, document);
-
 	return ReturnCode::TS_NO_ERROR;
 }
 
 void TSDataExtractor::SortDocIndexies(TSDocumentPtr document) const
 {
 	// index must be sorted by term_id
+	//__debugbreak();
 	auto MergeSimilarLemmas = [] (TSIndexPtr &index) {
-		if( index->GetType() != SDataType::LEMMA )
+		if( index->GetType() != SDataType::LEMMA || index->size() < 2 )
 			return;
+		std::map<int, std::vector<TSIndexItem>::iterator> pos2item;
+		for( auto iter = index->begin(); iter != index->end(); iter++ ) {
+			for( auto pos : iter->GetPositions() ) {
+				auto pos_iter = pos2item.find(pos);
+				if( pos_iter == pos2item.end() ) {
+					pos2item[pos] = iter;
+				} else if( pos_iter->second->GetWeight() < iter->GetWeight() ) {
+					pos_iter->second = iter;
+				}
+			}
+		}
 
-		/*for( auto placer_iter = index->begin(), runner_iter = index->begin(); runner_iter != index->end(); runner_iter++ ) {
-			if(  )
-		}*/
+		std::set<TSIndexItem> items;
+		for( auto pos_elem : pos2item )
+			items.insert(std::move(*pos_elem.second));
 
+		int i = 0;
+		for( auto item : items ) {
+			*(index->begin() + i) = item;
+			i++;
+		}
+		index->erase(index->begin() + i, index->end());
 	};
 
 	for( long type = (long)SDataType::LEMMA; type != (long)SDataType::FINAL_TYPE; type++ ) {
 		TSIndexPtr p_index;
 		if( document->GetIndex((SDataType)type, p_index) ) {
+			MergeSimilarLemmas(p_index);
 			std::sort(p_index->begin(), p_index->end(), [] (const TSIndexItem &lhs, const TSIndexItem &rhs) {
 				return lhs.GetWeight() > rhs.GetWeight();
 			});
@@ -117,13 +138,12 @@ void TSDataExtractor::SortDocIndexies(TSDocumentPtr document) const
 	for( auto sentence_iter = document->sentences_begin(); sentence_iter != document->sentences_end(); sentence_iter++ ) {
 		for( long type = (long)SDataType::LEMMA; type != (long)SDataType::FINAL_TYPE; type++ ) {
 			TSIndexPtr p_index;
-			if( sentence_iter->GetIndex((SDataType)type, p_index) )
+			if( sentence_iter->GetIndex((SDataType)type, p_index) ) {
+				MergeSimilarLemmas(p_index);
 				std::sort(p_index->begin(), p_index->end());
+			}
 		}
 	}
-
-	// todo merge similar pos for lemmas
-
 }
 
 bool TSDataExtractor::GetDocumentList(const TSQuery &query, const std::initializer_list<float> &params, std::vector<std::string> &doc_list) const

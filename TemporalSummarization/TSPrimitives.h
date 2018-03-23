@@ -344,7 +344,8 @@ public:
 	inline std::map<std::string, TSDocument>::iterator end() { return m_Docs.end(); }
 	inline std::map<std::string, TSDocument>::const_iterator begin() const { return m_Docs.begin(); }
 	inline std::map<std::string, TSDocument>::const_iterator end() const { return m_Docs.end(); }
-
+	inline std::map<std::string, TSDocument>::iterator find(const std::string &doc_name) { return m_Docs.find(doc_name); }
+	inline std::map<std::string, TSDocument>::const_iterator find(const std::string &doc_name) const { return m_Docs.find(doc_name); }
 private:
 	std::map<std::string, TSDocument> m_Docs;
 	std::map<std::string, TSDocument>::node_type m_UncommitedDoc;
