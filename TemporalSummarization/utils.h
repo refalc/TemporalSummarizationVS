@@ -75,11 +75,37 @@ struct Params
 	int m_DITopKValue;
 };
 
-class CLogger
+#define CRIT_SECTION_NAME(type) type##_instance
+#define DECLARE_FRIEND_FOR_SINGETON(type) friend class SingletonClass<type>;
+
+template<class T>
+class SingletonClass
 {
 public:
+	static T* Instance() {
+		if( !m_spInstance ) {
+#pragma omp critical (CRIT_SECTION_NAME(T)) 
+			{
+				if( !m_spInstance ) {
+					m_spInstance.reset(new T());
+				}
+			}
+		}
+
+		return m_spInstance.get();
+	}
+private:
+	static std::unique_ptr<T> m_spInstance;
+};
+
+template<class T>
+std::unique_ptr<T> SingletonClass<T>::m_spInstance = nullptr;
+
+class CLogger : public SingletonClass<CLogger>
+{
+public:
+	DECLARE_FRIEND_FOR_SINGETON(CLogger)
 	~CLogger();
-	static CLogger *Instance();
 
 	template<typename T>
 	void WriteToLog(const T &str)
@@ -102,7 +128,6 @@ private:
 	CLogger();
 
 private:
-	static std::unique_ptr<CLogger> m_spInstance;
 	const std::string m_sLoggerFile = "tss.log";
 	std::fstream m_pFile;
 };
@@ -134,9 +159,10 @@ private:
 	Params m_Params;
 };
 
-class CProfiler
+class CProfiler : public SingletonClass<CProfiler>
 {
 public:
+	DECLARE_FRIEND_FOR_SINGETON(CProfiler)
 	class CProfilerProbe
 	{
 	public:
@@ -153,22 +179,20 @@ public:
 	};
 
 	~CProfiler();
-	static CProfiler *Instance();
 	void AddDuration(const std::string &mark, double duration);
 	void DataToLog();
 private:
 	CProfiler();
 
 private:
-	static std::unique_ptr<CProfiler> m_spInstance;
 	std::map<std::string, double> m_Data;
 };
 
-class CIndex
+class CIndex : public SingletonClass<CIndex>
 {
 public:
+	DECLARE_FRIEND_FOR_SINGETON(CIndex)
 	~CIndex();
-	static CIndex *Instance();
 	bool GetStr(int ID, std::string &str) const;
 	int AddToIndex(const std::string &str);
 	int GetID(const std::string &str) const;
@@ -181,8 +205,6 @@ private:
 	bool Save();
 
 private:
-	static std::unique_ptr<CIndex> m_spInstance;
-
 	std::unordered_map<std::string, int> m_S2IIndex;
 	std::unordered_map<int, std::string> m_I2SIndex;
 	const std::string m_sFileName = std::string("index.idx");
@@ -234,3 +256,30 @@ auto GetPrivateContainer(const std::priority_queue<T, S, C>& q) {
 	};
 	return HackedQueue::GetContainer(q);
 }
+
+class CPostPrinter : public SingletonClass<CPostPrinter>
+{
+public:
+	DECLARE_FRIEND_FOR_SINGETON(CPostPrinter)
+	enum PostFileType {
+		GlobalApp = 0,
+		LocalApp = 1,
+		CreateAlways = 2
+	};
+	class CPostFile
+	{
+	public:
+		CPostFile(const std::string &file_name, PostFileType type);
+
+	private:
+		std::string m_sFileName;
+		PostFileType m_eFileType;
+		int m_iCallID;
+	};
+
+private:
+	CPostPrinter();
+
+private:
+
+};

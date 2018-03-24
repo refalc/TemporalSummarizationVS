@@ -484,22 +484,6 @@ bool CArgReader::GetParams(Params &params) const
 
 //--------------------ARG READER--------------------
 //--------------------LOGGER--------------------
-
-std::unique_ptr<CLogger> CLogger::m_spInstance = nullptr;
-CLogger *CLogger::Instance()
-{
-	if (!m_spInstance) {
-#pragma omp critical (logger_instance) 
-		{
-			if( !m_spInstance ) {
-				m_spInstance.reset(new CLogger());
-			}
-		}
-	}
-
-	return m_spInstance.get();
-}
-
 CLogger::CLogger()
 {
 	m_pFile.open(m_sLoggerFile, std::fstream::app);
@@ -512,7 +496,6 @@ CLogger::~CLogger()
 //--------------------LOGGER--------------------
 
 //--------------------PROFILER--------------------
-std::unique_ptr<CProfiler> CProfiler::m_spInstance = nullptr;
 CProfiler::~CProfiler()
 {
 	DataToLog();
@@ -521,19 +504,6 @@ CProfiler::~CProfiler()
 CProfiler::CProfiler()
 {
 
-}
-
-CProfiler *CProfiler::Instance()
-{
-	if( !m_spInstance ) {
-#pragma omp critical (profiler_instance) 
-		{
-			if( !m_spInstance ) {
-				m_spInstance.reset(new CProfiler());
-			}
-		}
-	}
-	return m_spInstance.get();
 }
 
 void CProfiler::AddDuration(const std::string &mark, double duration)
@@ -556,20 +526,6 @@ void CProfiler::DataToLog()
 //--------------------PROFILER--------------------
 
 //--------------------INDEX--------------------
-std::unique_ptr<CIndex> CIndex::m_spInstance = nullptr;
-CIndex *CIndex::Instance()
-{
-	if( !m_spInstance ) {
-#pragma omp critical (index_instance) 
-		{
-			if( !m_spInstance ) {
-				m_spInstance.reset(new CIndex());
-			}
-		}
-	}
-	return m_spInstance.get();
-}
-
 CIndex::CIndex()
 {
 	m_iLastIndex = -1;
