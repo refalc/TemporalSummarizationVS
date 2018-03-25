@@ -81,11 +81,11 @@ public:
 	~TSDocumentExtractor();
 
 	virtual bool InitParameters(const std::initializer_list<float> &params) override;
-	bool ConstructTimeLineCollections(const TSQuery &query, TSTimeLineCollections &collections);
+	bool ConstructTimeLineCollections(const TSQuery &query, const std::string &init_doc_id, TSTimeLineCollections &collections);
 
 private:
 	bool SeparateCollectionByTime(TSDocCollection &whole_collection, TSTimeLineCollections &collections) const;
-	void ComputeDocsImportance(const TSDocCollection &whole_collection, std::map<std::string, float> &doc_to_importance, std::vector<std::string> &top_docs) const;
+	void ComputeDocsImportance(const TSDocCollection &whole_collection, std::map<std::string, float> &doc_to_importance, std::vector<std::string> &top_docs, std::vector<std::string> &full_top_docs) const;
 	void ConstructSimilarityMatrix(const std::vector<TSDocumentRepresentation> &docs_representations, std::vector<std::vector<float>> &similarity_matrix) const;
 	void PowerMethod(const std::vector<std::vector<float>> &similarity_matrix, const std::vector<float> &start_importances, std::vector<float> &importances) const;
 	static void ReportGraph(const std::vector<std::vector<float>> &similarity_matrix, const std::vector<float> &importances, const std::vector<TSDocumentsCluster> &clusters);
@@ -98,7 +98,11 @@ private:
 	void ComputeStartImportanceVector(const std::vector<TSDocumentsCluster> &clusters, int docs_size, std::vector<float> &start_importances) const;
 	float CalculateHourSim(float h1, float h2) const;
 	void NormalizeImportanceVector(std::vector<float> &importances) const;
-	bool PrintTopDocs(const TSDocCollection &whole_collection, const std::map<std::string, float> doc_to_importance, const std::vector<std::string> top_docs) const;
+
+	 //for optimization
+	bool PrintDoc(const TSDocument &doc, float doc_weight, std::ostream &os) const;
+	bool PrintTopDocs(const TSDocCollection &whole_collection, const std::vector<std::string> &top_docs, const std::map<std::string, float> doc_to_importance, const std::string &init_doc_id) const;
+	bool PrintCollection(const TSDocCollection &whole_collection, const std::string &init_doc_id) const;
 private:
 	int m_iDocCount;
 	float m_fSoftOr;
@@ -118,7 +122,4 @@ private:
 
 	int m_iDocTailSize;
 	int m_iDocHeadSize;
-
-	// for reports only
-	static int m_iGraphsCount;
 };

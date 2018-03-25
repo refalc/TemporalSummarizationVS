@@ -13,6 +13,7 @@ int main(int argc, char *argv[])
 	CLogger::Instance()->WriteToLog("Start perf check");
 	auto probe = CProfiler::CProfilerProbe("all");
 	CArgReader arg_reader;
+	//__debugbreak();
 	if( arg_reader.ReadArguments(argc, argv) ) {
 		TSController controller;
 		Params input_params;
@@ -51,7 +52,7 @@ int main(int argc, char *argv[])
 				CLogger::Instance()->WriteToLog("ERROR : while getting parameters from arg reader");
 				return -1;
 			}
-
+			__debugbreak();
 			if( !controller.InitParameters(input_params, docs_serialization_path, input_answer_path, input_w2v_path, summary_size) ) {
 				CLogger::Instance()->WriteToLog("ERROR : while init parameters");
 				return -1;

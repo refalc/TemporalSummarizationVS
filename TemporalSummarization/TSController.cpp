@@ -4,7 +4,7 @@
 #include "TSDocumentExtractor.h"
 #include "TSSolver.h"
 #include "TSPrimitives.h"
-#include <fstream>
+#include <sstream>
 
 TSController::TSController() :
 	m_iTemporalSummarySize(0)
@@ -98,9 +98,6 @@ bool TSController::RunQueries(const std::vector<std::string> &queries) const
 {
 	auto probe = CProfiler::CProfilerProbe("run_queries");
 	CLogger::Instance()->WriteToLog("INFO : Start run queries, size = " + std::to_string(queries.size()));
-	if( !CleanAnswerFile() )
-		return false;
-
 #pragma omp parallel
 	{
 #pragma omp  for
@@ -146,11 +143,14 @@ bool TSController::RunQuery(const std::string &doc_id) const
 		query = query_first_level;
 
 	TSTimeLineCollections collection;
-	if( !m_spDocExtractor->ConstructTimeLineCollections(query, collection) ) {
+	if( !m_spDocExtractor->ConstructTimeLineCollections(query, doc_id, collection) ) {
 		CLogger::Instance()->WriteToLog("ERROR : error while construct time collection");
 		return false;
 	}
 
+	//
+	return true;
+	//
 	TSTimeLineQueries queries;
 	ConstructTimeLinesQueries(std::move(query), doc_id, collection, queries);
 
@@ -177,77 +177,61 @@ bool TSController::RunQuery(const std::string &doc_id) const
 
 bool TSController::SaveTemporalSummaryInFile(const std::vector<std::pair<float, TSSentenceConstPtr>> &temporal_summary, const TSTimeLineQueries &queries, const std::string &init_doc_id) const
 {
-	std::fstream pFile;
-	pFile.open(m_AnswerPath, std::fstream::app);
-	if( !pFile.is_open() )
-		return false;
+	std::stringbuf buffer; 
+	std::ostream os(&buffer);  
 
-	pFile << "<story id=" << m_iStoryIDCounter++ << " init_doc_id=" << init_doc_id << ">" << std::endl;
-	pFile << "<queries>" << std::endl;
+	os << "<story id=" << m_iStoryIDCounter++ << " init_doc_id=" << init_doc_id << ">" << std::endl;
+	os << "<queries>" << std::endl;
 	for( const auto &query_pair : queries ) {
-		pFile << "<query int_date=" << query_pair.first << " query_doc_id=" << query_pair.second.second << ">" << std::endl;
+		os << "<query int_date=" << query_pair.first << " query_doc_id=" << query_pair.second.second << ">" << std::endl;
 
 		TSIndexConstPtr lemma_index_ptr, termin_index_ptr;
 		if( !query_pair.second.first.GetIndex(SDataType::LEMMA, lemma_index_ptr) )
 			return false;
-		pFile << "<lemmas>" << std::endl;
-		pFile << lemma_index_ptr->GetString() << std::endl;
-		pFile << "</lemmas>" << std::endl;
+		os << "<lemmas>" << std::endl;
+		os << lemma_index_ptr->GetString() << std::endl;
+		os << "</lemmas>" << std::endl;
 
 		if( query_pair.second.first.GetIndex(SDataType::TERMIN, termin_index_ptr) ) {
-			pFile << "<termins>" << std::endl;
-			pFile << termin_index_ptr->GetString() << std::endl;
-			pFile << "</termins>" << std::endl;
+			os << "<termins>" << std::endl;
+			os << termin_index_ptr->GetString() << std::endl;
+			os << "</termins>" << std::endl;
 		}
-		pFile << "</query>" << std::endl;
+		os << "</query>" << std::endl;
 	}
-	pFile << "</queries>" << std::endl;
+	os << "</queries>" << std::endl;
 
-	pFile << "<summary>" << std::endl;
+	os << "<summary>" << std::endl;
 	for( int i = 0; i < temporal_summary.size(); i++ ) {
-		pFile << "<sentence id=" << i + 1 << " mmr=" << temporal_summary[i].first << ">" << std::endl;
+		os << "<sentence id=" << i + 1 << " mmr=" << temporal_summary[i].first << ">" << std::endl;
 
 		TSDocumentConstPtr pdoc = temporal_summary[i].second->GetDocPtr();
-		pFile << "<metadata";
+		os << "<metadata";
 		std::string meta_data;
 		if( !pdoc->GetMetaData(SMetaDataType::DATE, meta_data) )
 			return false;
-		pFile << " date=" << meta_data;
+		os << " date=" << meta_data;
 		if( !pdoc->GetMetaData(SMetaDataType::SITE, meta_data) )
 			return false;
-		pFile << " site=" << meta_data;
+		os << " site=" << meta_data;
 		if( !pdoc->GetMetaData(SMetaDataType::TITLE, meta_data) )
 			return false;
-		pFile << " title=" << meta_data;
-		pFile << " doc_id=" << pdoc->GetDocID();
-		pFile << " sent_num=" << temporal_summary[i].second->GetSentenseNumber();
-		pFile << "\\>" << std::endl;
+		os << " title=" << meta_data;
+		os << " doc_id=" << pdoc->GetDocID();
+		os << " sent_num=" << temporal_summary[i].second->GetSentenseNumber();
+		os << "\\>" << std::endl;
 
 		TSIndexConstPtr word_index_ptr;
 		if( !temporal_summary[i].second->GetIndex(SDataType::WORD, word_index_ptr) )
 			return false;
-		pFile << word_index_ptr->GetOrderedString() << std::endl;
+		os << word_index_ptr->GetOrderedString() << std::endl;
 		
-		pFile << "</sentence>" << std::endl;
+		os << "</sentence>" << std::endl;
 	}
-	pFile << "</summary>" << std::endl;
-	pFile << "</story>" << std::endl;
-	pFile.close();
-
-	return true;
-}
-
-bool TSController::CleanAnswerFile() const
-{
-	m_iStoryIDCounter = 0;
-
-	std::fstream pFile;
-	pFile.open(m_AnswerPath, std::fstream::out);
-	if( !pFile.is_open() )
-		return false;
-
-	pFile.close();
-	return true;
+	os << "</summary>" << std::endl;
+	os << "</story>" << std::endl;
+	
+	return CPostPrinter::Instance()->WriteToFile(m_AnswerPath, CPostPrinter::LocalApp, buffer.str());
 }
 
 bool TSController::ConstructTimeLinesQueries(TSQuery &&init_query, const std::string &init_doc_id, const TSTimeLineCollections &collections, TSTimeLineQueries &queries) const

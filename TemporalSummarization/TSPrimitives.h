@@ -338,6 +338,7 @@ public:
 	TSDocumentPtr AllocateDocument();
 	bool CommitAllocatedDocument();
 
+	bool GetDoc(const std::string &doc_id, TSDocumentConstPtr &doc_ptr) const;
 	inline size_t size() const { return m_Docs.size(); }
 	// iterate docs
 	inline std::map<std::string, TSDocument>::iterator begin() { return m_Docs.begin(); }
@@ -346,6 +347,8 @@ public:
 	inline std::map<std::string, TSDocument>::const_iterator end() const { return m_Docs.end(); }
 	inline std::map<std::string, TSDocument>::iterator find(const std::string &doc_name) { return m_Docs.find(doc_name); }
 	inline std::map<std::string, TSDocument>::const_iterator find(const std::string &doc_name) const { return m_Docs.find(doc_name); }
+
+	
 private:
 	std::map<std::string, TSDocument> m_Docs;
 	std::map<std::string, TSDocument>::node_type m_UncommitedDoc;

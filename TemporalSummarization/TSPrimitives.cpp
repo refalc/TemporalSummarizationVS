@@ -603,6 +603,16 @@ int TSMetaData::ConstructIntDate(const std::string &data)
 	return std::stoi(day) + std::stoi(month)  * 31 + std::stoi(year) * 365;
 }
 
+bool TSDocCollection::GetDoc(const std::string &doc_id, TSDocumentConstPtr &doc_ptr) const
+{
+	auto doc_iter = m_Docs.find(doc_id);
+	if( doc_iter == m_Docs.end() )
+		return false;
+
+	doc_ptr = &(doc_iter->second);
+	return true;
+}
+
 TSDocumentPtr TSDocCollection::AllocateDocument()
 {
 	if( m_UncommitedDoc.empty() ) {

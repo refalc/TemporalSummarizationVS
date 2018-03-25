@@ -11,6 +11,8 @@
 #include <chrono>
 #include <omp.h>  
 #include <queue>
+#include <mutex>
+
 // consts
 constexpr int W2V_VECTOR_SIZE = 100;
 
@@ -264,22 +266,30 @@ public:
 	enum PostFileType {
 		GlobalApp = 0,
 		LocalApp = 1,
-		CreateAlways = 2
+		CreateAlways = 2,
+		CreateAlwaysNameCallID = 3
 	};
+
 	class CPostFile
 	{
 	public:
 		CPostFile(const std::string &file_name, PostFileType type);
+		inline PostFileType GetType() const { return m_eFileType; }
+		bool Write(const std::string &str);
 
 	private:
+		std::fstream m_pFile;
 		std::string m_sFileName;
 		PostFileType m_eFileType;
 		int m_iCallID;
 	};
 
+	bool WriteToFile(const std::string &file_name, PostFileType file_type, const std::string &str);
+
 private:
 	CPostPrinter();
 
 private:
-
+	std::map<std::string, CPostFile> m_Files;
+	std::map<std::string, std::unique_ptr<std::mutex>> m_FilesMutexes;
 };

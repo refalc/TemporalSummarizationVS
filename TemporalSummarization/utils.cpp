@@ -829,3 +829,59 @@ bool Word2Vec::Load(const std::string &path)
 	return true;
 }
 //--------------------W2V------------------------
+
+
+CPostPrinter::CPostFile::CPostFile(const std::string &file_name, PostFileType type) :
+	m_sFileName(file_name),
+	m_eFileType(type),
+	m_iCallID(0)
+{
+	if( m_eFileType != CreateAlways && m_eFileType != CreateAlwaysNameCallID ) {
+		if( m_eFileType == GlobalApp )
+			m_pFile.open(m_sFileName, std::ios::app);
+		else if( m_eFileType == LocalApp )
+			m_pFile.open(m_sFileName, std::ios::out);
+	}
+}
+
+bool CPostPrinter::CPostFile::Write(const std::string &str)
+{
+	if( m_eFileType == CreateAlways )
+		m_pFile.open(m_sFileName, std::ios::out);
+	else if( m_eFileType == CreateAlwaysNameCallID )
+		m_pFile.open(std::to_string(m_iCallID) + "ID_"+ m_sFileName, std::ios::out);
+
+	if( !m_pFile.is_open() )
+		return false;
+
+	m_iCallID++;
+	m_pFile << str << std::endl;
+
+	if( m_eFileType == CreateAlways || m_eFileType == CreateAlwaysNameCallID )
+		m_pFile.close();
+
+	return true;
+}
+
+bool CPostPrinter::WriteToFile(const std::string &file_name, PostFileType file_type, const std::string &str)
+{
+	auto file_iter = m_Files.find(file_name);
+	if( file_iter == m_Files.end() ) {
+#pragma omp critical (CPostPrinter_add_file) 
+		{
+			if( file_iter == m_Files.end() ) {
+				file_iter = m_Files.emplace(file_name, CPostFile(file_name, file_type)).first;
+				m_FilesMutexes.emplace(file_name, std::make_unique<std::mutex>());
+			}
+		}
+	}
+	if( file_iter->second.GetType() != file_type )
+		return false;
+
+	std::lock_guard<std::mutex> lock(*m_FilesMutexes[file_name]);
+	return file_iter->second.Write(str);
+}
+
+CPostPrinter::CPostPrinter()
+{
+}

@@ -3,11 +3,10 @@
 #include <iostream>
 #include <algorithm>
 #include <numeric>
+#include <sstream>
 
 #define _USE_MATH_DEFINES
 #include <math.h>
-
-int TSDocumentExtractor::m_iGraphsCount = 0;
 
 TSDocumentExtractor::TSDocumentExtractor() :
 	m_iDocTailSize(4),
@@ -48,7 +47,7 @@ bool TSDocumentExtractor::InitParameters(const std::initializer_list<float> &par
 	float clusterization_sim_threshold = params.begin()[12],
 		  max_hour_diff = params.begin()[13];
 
-	int top_k_value = params.begin()[14];
+	int top_k_value = (int)params.begin()[14];
 
 	if( doc_count < 0 || soft_or < 0.0f || soft_or > 1.f ||
 		min_doc_rank < 0.0f || min_doc_rank > 1.0f ||
@@ -78,19 +77,61 @@ bool TSDocumentExtractor::InitParameters(const std::initializer_list<float> &par
 	return true;
 }
 
-bool TSDocumentExtractor::PrintTopDocs(const TSDocCollection &whole_collection, const std::map<std::string, float> doc_to_importance, const std::vector<std::string> top_docs) const
+bool TSDocumentExtractor::PrintDoc(const TSDocument &doc, float doc_weight, std::ostream &os) const
 {
-	std::fstream pFile;
-	pFile.open("TopDoc.xml", std::ios::app);
-	auto PrintDoc = [] (const TSDocument &doc) {
-		
-	};
+	std::string date;
+	if( !doc.GetMetaData(SMetaDataType::DATE, date) )
+		return false;
+
+	os << "<document doc_id=" << doc.GetDocID() << " doc_date=" << date << " doc_weight=" << std::to_string(doc_weight) << ">" << std::endl;
+	for( auto sent_iter = doc.sentences_begin(); sent_iter != doc.sentences_end(); sent_iter++ ) {
+		os << "<sentence sent_num =" << std::to_string(sent_iter->GetSentenseNumber()) << ">" << std::endl;
+		TSIndexConstPtr word_index_ptr;
+		if( !sent_iter->GetIndex(SDataType::WORD, word_index_ptr) )
+			return false;
+		os << word_index_ptr->GetOrderedString() << std::endl;
+		os << "</sentence>" << std::endl;;
+	}
+
+	os << "</document>" << std::endl;
+	return true;
 }
 
-bool TSDocumentExtractor::ConstructTimeLineCollections(const TSQuery &query, TSTimeLineCollections &collections)
+bool TSDocumentExtractor::PrintCollection(const TSDocCollection &whole_collection, const std::string &init_doc_id) const
+{
+	std::stringbuf buffer;
+	std::ostream os(&buffer);
+
+	os << "<story id=" << init_doc_id  << ">" << std::endl;
+	for( const auto &doc_pair : whole_collection )
+		if( !PrintDoc(doc_pair.second, 0.0, os) )
+			return false;
+	os << "</story>" << std::endl;
+	return CPostPrinter::Instance()->WriteToFile("collection_constructed.xml", CPostPrinter::LocalApp, buffer.str());
+}
+
+bool TSDocumentExtractor::PrintTopDocs(const TSDocCollection &whole_collection, const std::vector<std::string> &top_docs, const std::map<std::string, float> doc_to_importance, const std::string &init_doc_id) const
+{
+	//__debugbreak();
+	std::stringbuf buffer;
+	std::ostream os(&buffer);
+
+	os << "<story id=" << init_doc_id << ">" << std::endl;
+	for( auto &doc_name : top_docs ) {
+		TSDocumentConstPtr doc_ptr;
+		if( !whole_collection.GetDoc(doc_name, doc_ptr) )
+			return false;
+		if( !PrintDoc(*doc_ptr, doc_to_importance.at(doc_name), os) )
+			return false;
+	}
+	os << "</story>" << std::endl;
+	return CPostPrinter::Instance()->WriteToFile("collection_constructed.xml", CPostPrinter::LocalApp, buffer.str());
+}
+
+bool TSDocumentExtractor::ConstructTimeLineCollections(const TSQuery &query, const std::string &init_doc_id, TSTimeLineCollections &collections)
 {
 	auto probe = CProfiler::CProfilerProbe("constr_timeline_collections");
-
+	//__debugbreak();
 	TSDocCollection whole_collection;
 	auto init_params = { (float)m_iDocCount, m_fSoftOr, m_fMinDocRank };
 	if( m_pDataExtractor->GetDocuments(query, init_params, whole_collection) != ReturnCode::TS_NO_ERROR )
@@ -99,14 +140,21 @@ bool TSDocumentExtractor::ConstructTimeLineCollections(const TSQuery &query, TST
 	if( whole_collection.size() == 0 )
 		return false;
 
+	// print collection
+	if( !m_bTemporalMode || !m_bDocImportance )
+		PrintCollection(whole_collection, init_doc_id);
+	//
+
 	if( m_bTemporalMode ) {
 		if( m_bDocImportance ) {
 			std::map<std::string, float> doc_to_importance;
-			std::vector<std::string> top_docs;
-			ComputeDocsImportance(whole_collection, doc_to_importance, top_docs);
-			// Print top docs
+			std::vector<std::string> top_docs, full_top_docs;
+			ComputeDocsImportance(whole_collection, doc_to_importance, top_docs, full_top_docs);
 
+			// Print top docs
+			PrintTopDocs(whole_collection, full_top_docs, doc_to_importance, init_doc_id);
 			//
+
 			collections.InitDocumentsImportanceData(std::move(doc_to_importance), std::move(top_docs));
 			if( !SeparateCollectionByTime(whole_collection, collections) )
 				return false;
@@ -161,8 +209,9 @@ void TSDocumentExtractor::CutDaysWithSmallPublicationsSize(TSTimeLineCollections
 	collections.EraseCollectionsWithSizeLessThen((int)(summ_top_3 * 0.2f));
 }
 
-void TSDocumentExtractor::ComputeDocsImportance(const TSDocCollection &whole_collection, std::map<std::string, float> &doc_to_importance, std::vector<std::string> &top_docs) const
+void TSDocumentExtractor::ComputeDocsImportance(const TSDocCollection &whole_collection, std::map<std::string, float> &doc_to_importance, std::vector<std::string> &top_docs, std::vector<std::string> &full_top_docs) const
 {
+	//__debugbreak();
 	auto probe = CProfiler::CProfilerProbe("compute_doc_importance");
 	std::vector<TSDocumentRepresentation> docs_representations;
 	ConstructDocumentsRepresentations(whole_collection, docs_representations);
@@ -218,6 +267,7 @@ void TSDocumentExtractor::ComputeDocsImportance(const TSDocCollection &whole_col
 				CLogger::Instance()->WriteToLog("INFO : topdoc = " + cluster.GetCentroidDoc()->GetDocPtr()->GetDocID() + " i = " + std::to_string(cluster.GetImportance()));
 				top_docs.push_back(cluster.GetCentroidDoc()->GetDocPtr()->GetDocID());
 			}
+			full_top_docs.push_back(cluster.GetCentroidDoc()->GetDocPtr()->GetDocID());
 		}
 
 		if( is_reporting_graph )
@@ -243,6 +293,7 @@ void TSDocumentExtractor::ComputeDocsImportance(const TSDocCollection &whole_col
 				CLogger::Instance()->WriteToLog("INFO : topdoc = " + doc.GetDocPtr()->GetDocID() + " i = " + std::to_string(doc.GetImportance()));
 				top_docs.push_back(doc.GetDocPtr()->GetDocID());
 			}
+			full_top_docs.push_back(doc.GetDocPtr()->GetDocID());
 		}
 	}
 }
@@ -338,20 +389,8 @@ void TSDocumentExtractor::ReportGraph(const std::vector<std::vector<float>> &sim
 
 #pragma omp critical (ReportGraph) 
 	{
-		std::string node_file_name = "node_graph_num_" + std::to_string(m_iGraphsCount),
-			edge_file_name = "edge_graph_num_" + std::to_string(m_iGraphsCount);
-
-		std::fstream pNodeFile, pEdgeFile;
-		pNodeFile.open(node_file_name, std::fstream::out);
-		pEdgeFile.open(edge_file_name, std::fstream::out);
-		if( pNodeFile.is_open() && pEdgeFile.is_open() ) {
-			pNodeFile << node_data;
-			pEdgeFile << edge_data;
-
-			m_iGraphsCount++;
-			pNodeFile.close();
-			pEdgeFile.close();
-		}
+		CPostPrinter::Instance()->WriteToFile("node_graph_num", CPostPrinter::CreateAlwaysNameCallID, node_data);
+		CPostPrinter::Instance()->WriteToFile("edge_graph_num", CPostPrinter::CreateAlwaysNameCallID, edge_data);
 	}
 
 	// print centroid info
@@ -478,7 +517,7 @@ void TSDocumentExtractor::ComputeStartImportanceVector(const std::vector<TSDocum
 		if( clusters[i].size() == 0 )
 			start_importances[i] = 0.f;
 
-		start_importances[i] *= std::log(M_E + (float)clusters[i].size());
+		start_importances[i] *= std::log((float)M_E + (float)clusters[i].size());
 	}
 }
 
