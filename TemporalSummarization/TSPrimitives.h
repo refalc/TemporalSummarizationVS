@@ -148,7 +148,7 @@ public:
 
 	bool ConstructIndexEmbedding(const Word2Vec *model) const;
 	const std::array<float, W2V_VECTOR_SIZE> &GetIndexEmbedding() const { return m_IndexEmbedding; }
-
+	inline float GetIndexEmbeddingLen() const { return m_fIndexEmbeddingLen; }
 	inline SDataType GetType() const { return m_eIndexType; }
 	std::string GetString() const;
 	std::string GetOrderedString() const;
@@ -179,6 +179,7 @@ private:
 	SDataType m_eIndexType;
 	std::vector<TSIndexItem> m_Index;
 	mutable std::array<float, W2V_VECTOR_SIZE> m_IndexEmbedding;
+	mutable float m_fIndexEmbeddingLen;
 };
 
 class TSIndexiesHolder
@@ -338,6 +339,7 @@ public:
 	TSDocumentPtr AllocateDocument();
 	bool CommitAllocatedDocument();
 
+	bool CheckDocID(const std::string& doc_id) const;
 	bool GetDoc(const std::string &doc_id, TSDocumentConstPtr &doc_ptr) const;
 	inline size_t size() const { return m_Docs.size(); }
 	// iterate docs
@@ -381,7 +383,7 @@ class TSTimeLineQueries
 public:
 	bool AddQuery(int time_anchor, TSQuery &&query, const std::string &query_init_doc);
 	bool GetQuery(int time_anchor, TSQueryConstPtr &query, std::string &query_init_doc) const;
-
+	bool CheckIsFreeTime(int time_anchor) const;
 	inline std::map<int, std::pair<TSQuery, std::string>>::iterator begin() { return m_Queries.begin(); }
 	inline std::map<int, std::pair<TSQuery, std::string>>::iterator end() { return m_Queries.end(); }
 	inline std::map<int, std::pair<TSQuery, std::string>>::const_iterator begin() const { return m_Queries.begin(); }

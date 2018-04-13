@@ -70,11 +70,13 @@ void TSIndexItem::LoadFromHistoryController(HistoryController &history)
 }
 TSIndex::TSIndex()
 {
+	m_fIndexEmbeddingLen = 0.f;
 	std::fill(m_IndexEmbedding.begin(), m_IndexEmbedding.end(), 0.f);
 }
 
 TSIndex::TSIndex(SDataType type) noexcept :
-m_eIndexType(type)
+m_eIndexType(type),
+m_fIndexEmbeddingLen(0.f)
 {
 	std::fill(m_IndexEmbedding.begin(), m_IndexEmbedding.end(), 0.f);
 }
@@ -94,7 +96,7 @@ const TSIndex &TSIndex::operator=(const TSIndex &other)
 	m_eIndexType = other.m_eIndexType;
 	m_Index = other.m_Index;
 	m_IndexEmbedding = other.m_IndexEmbedding;
-
+	m_fIndexEmbeddingLen = other.m_fIndexEmbeddingLen;
 	return *this;
 }
 
@@ -103,6 +105,7 @@ const TSIndex &TSIndex::operator=(TSIndex &&other) noexcept
 	m_eIndexType = std::move(other.m_eIndexType);
 	m_Index = std::move(other.m_Index);
 	m_IndexEmbedding = std::move(other.m_IndexEmbedding);
+	m_fIndexEmbeddingLen = other.m_fIndexEmbeddingLen;
 
 	return *this;
 }
@@ -144,6 +147,9 @@ bool TSIndex::ConstructIndexEmbedding(const Word2Vec *model) const
 	if( !model )
 		return false;
 
+	std::fill(m_IndexEmbedding.begin(), m_IndexEmbedding.end(), 0.f);
+	m_fIndexEmbeddingLen = 0.f;
+
 	int success_count = 0;
 	for( const auto index_item : m_Index ) {
 		std::string word = index_item.GetID();
@@ -155,10 +161,15 @@ bool TSIndex::ConstructIndexEmbedding(const Word2Vec *model) const
 		}
 	}
 
-	if( success_count > 0 )
+	if( success_count > 0 ) {
 		for( int i = 0; i < m_IndexEmbedding.size(); i++ )
 			m_IndexEmbedding[i] /= (float)success_count;
 
+		for( int i = 0; i < m_IndexEmbedding.size(); i++ )
+			m_fIndexEmbeddingLen += m_IndexEmbedding[i] * m_IndexEmbedding[i];
+		if( m_fIndexEmbeddingLen > FLT_EPSILON )
+			m_fIndexEmbeddingLen = sqrt(m_fIndexEmbeddingLen);
+	}
 	return true;
 }
 
@@ -328,8 +339,8 @@ float TSIndexiesHolder::EmbeddingSimilarity(const TSIndexiesHolder &other, SData
 		return scalar;
 	};
 	float scalar = scalar_mult(curr_index, other_index),
-		  len_curr_index = sqrt(scalar_mult(curr_index, curr_index)),
-		  len_other_index = sqrt(scalar_mult(other_index, other_index));
+		len_curr_index = curr_index->GetIndexEmbeddingLen(),
+		len_other_index = other_index->GetIndexEmbeddingLen();
 
 	if( len_curr_index < FLT_EPSILON || len_other_index < FLT_EPSILON )
 		return 0.f;
@@ -493,9 +504,9 @@ void TSMetaData::LoadFromHistoryController(HistoryController &history)
 	}
 
 	// temporal
-	std::string date;
+	/*std::string date;
 	if( GetData(SMetaDataType::DATE, date) )
-		AddData(SMetaDataType::DATE, std::move(date));
+		AddData(SMetaDataType::DATE, std::move(date));*/
 		
 }
 
@@ -603,6 +614,15 @@ int TSMetaData::ConstructIntDate(const std::string &data)
 	return std::stoi(day) + std::stoi(month)  * 31 + std::stoi(year) * 365;
 }
 
+bool TSDocCollection::CheckDocID(const std::string& doc_id) const
+{
+	auto doc_iter = m_Docs.find(doc_id);
+	if( doc_iter == m_Docs.end() )
+		return false;
+
+	return true;
+}
+
 bool TSDocCollection::GetDoc(const std::string &doc_id, TSDocumentConstPtr &doc_ptr) const
 {
 	auto doc_iter = m_Docs.find(doc_id);
@@ -690,6 +710,15 @@ void TSTimeLineCollections::EraseCollectionsWithSizeLessThen(int size)
 	for( auto &remove_iter : candidates_for_delete ) {
 		m_Collections.erase(remove_iter);
 	}
+}
+
+bool TSTimeLineQueries::CheckIsFreeTime(int time_anchor) const
+{
+	auto queries_iter = m_Queries.lower_bound(time_anchor);
+	if( queries_iter != m_Queries.end() && !m_Queries.key_comp()(time_anchor, queries_iter->first) )
+		return false;
+
+	return true;
 }
 
 bool TSTimeLineQueries::AddQuery(int time_anchor, TSQuery &&query, const std::string &query_init_doc)

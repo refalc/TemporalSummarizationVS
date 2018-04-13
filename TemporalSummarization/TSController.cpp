@@ -149,7 +149,7 @@ bool TSController::RunQuery(const std::string &doc_id) const
 	}
 
 	//
-	return true;
+	//return true;
 	//
 	TSTimeLineQueries queries;
 	ConstructTimeLinesQueries(std::move(query), doc_id, collection, queries);
@@ -249,6 +249,10 @@ bool TSController::ConstructTimeLinesQueries(TSQuery &&init_query, const std::st
 
 	if( m_Params.m_DocImportance ) {
 		for( const auto &doc_id : collections.GetTopDocs() ) {
+			int query_int_date = GetQueryDate(doc_id, collections);
+			if( !queries.CheckIsFreeTime(query_int_date) )
+				continue;
+
 			TSQuery query_first_level, query_second_level, query_third_level, query;
 			if( !m_spQueryConstructor->QueryConstructionProcess(doc_id, query_first_level) ) {
 				CLogger::Instance()->WriteToLog("ERROR : error while query construction process");
@@ -271,7 +275,6 @@ bool TSController::ConstructTimeLinesQueries(TSQuery &&init_query, const std::st
 				p_index->ConstructIndexEmbedding(m_spModel.get());
 			}
 
-			int query_int_date = GetQueryDate(doc_id, collections);
 			if( !queries.AddQuery(query_int_date, std::move(query), doc_id) )
 				return false;
 		}

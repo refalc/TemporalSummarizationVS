@@ -41,7 +41,7 @@ public:
 	void MergeClusters(TSDocumentsCluster &other_cluster);
 	float Sim(const TSDocumentsCluster &other, const std::vector<std::vector<float>> &sim_matrix) const;
 	inline const TSIndex& GetClusterCentroid() const { return m_Centroid; }
-	inline TSIndex& TSDocumentsCluster::GetClusterCentroid() { return m_Centroid; }
+	inline TSIndex& GetClusterCentroid() { return m_Centroid; }
 	inline bool IsActive() const { return m_bIsActive; }
 	inline int GetClusterLabel() const { return m_iClusterLabel; }
 	inline int GetCentroidHourDate() const { return m_iCentroidHourDate; }

@@ -12,6 +12,7 @@
 #include <omp.h>  
 #include <queue>
 #include <mutex>
+#include <sstream>
 
 // consts
 constexpr int W2V_VECTOR_SIZE = 100;
@@ -233,10 +234,22 @@ public:
 	void operator>>(double &data);
 	void operator>>(std::string &data);
 
+	class hcstringbuf : public std::basic_streambuf<char, std::char_traits<char> >
+	{
+	public:
+		hcstringbuf &SetBuffer(char_type* buffer, std::streamsize bufferLength) {
+			setp(buffer, buffer + bufferLength);
+			setg(buffer, buffer, buffer + bufferLength);
+			return *this;
+		}
+	};
+
 private:
 	std::fstream m_pFileIn;
 	std::fstream m_pFileOut;
 	std::string m_FilesFolder = "";
+	std::vector<char> m_LoadBuffer;
+	hcstringbuf m_LoadStream;
 };
 
 class Word2Vec

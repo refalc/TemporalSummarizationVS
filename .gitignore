@@ -64,3 +64,14 @@ Temporary Items
 /Data
 /x64/Release
 *.idx
+/TemporalSummarization/0ID_edge_graph_num
+/TemporalSummarization/collection_constructed.xml
+/TemporalSummarization/4ID_node_graph_num
+/TemporalSummarization/4ID_edge_graph_num
+/TemporalSummarization/3ID_node_graph_num
+/TemporalSummarization/3ID_edge_graph_num
+/TemporalSummarization/2ID_node_graph_num
+/TemporalSummarization/2ID_edge_graph_num
+/TemporalSummarization/1ID_node_graph_num
+/TemporalSummarization/1ID_edge_graph_num
+/TemporalSummarization/0ID_node_graph_num

@@ -219,7 +219,7 @@ void TSDocumentExtractor::ComputeDocsImportance(const TSDocCollection &whole_col
 	if( docs_representations.empty() )
 		return;
 
-	bool is_reporting_graph = true;
+	bool is_reporting_graph = false;
 	std::vector<std::vector<float>> report_similarity_matrix;
 
 	std::vector<float> importances, start_importances;
@@ -744,16 +744,7 @@ void TSDocumentsCluster::ComputeCentroid()
 	for( const auto &centroid_item : m_CentroidInfo )
 		m_Centroid.AddToIndex(TSIndexItem(centroid_item.first, centroid_item.second / m_Docs.size(), std::vector<int>()));
 
-	// sort centroid
-	/*std::sort(m_Centroid.begin(), m_Centroid.end(), [] (const TSIndexItem &lhs, const TSIndexItem &rhs) {
-		return lhs.GetWeight() > rhs.GetWeight();
-	});*/
 	std::sort(m_Centroid.begin(), m_Centroid.end());
-
-	m_iCentroidHourDate = 0;
-	/*for( const auto &doc : m_Docs )
-		m_iCentroidHourDate += doc->GetHourDate();
-	m_iCentroidHourDate /= (int)m_Docs.size();*/
 
 	ComputeCentroidDoc();
 	m_iCentroidHourDate = m_pCentroidDoc->GetHourDate();

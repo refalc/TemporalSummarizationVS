@@ -193,7 +193,8 @@ ReturnCode TSDataExtractor::GetDocuments(const TSQuery &query, const std::initia
 	for( const auto &doc_id : doc_list ) {
 		//if( counter++ % 10 )
 			//std::cout << "\r\t\t\t\t\r" << counter * 100.f / doc_list.size();
-
+		if( collection.CheckDocID(doc_id) )
+			continue;
 		TSDocumentPtr doc = collection.AllocateDocument();
 		ReturnCode res = GetDocument(doc_id, doc);
 		if( res == ReturnCode::TS_DOC_SKIPPED )

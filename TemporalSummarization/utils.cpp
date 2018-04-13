@@ -722,14 +722,29 @@ void HistoryController::LoadMode(const std::string &doc_id)
 		m_pFileIn.open(file_name, std::ios::in | std::ios::binary);
 		if( !m_pFileIn.is_open() ) {
 			std::cout << "Error opening file to save " << file_name << std::endl;
+			return;
 		}
+
+		m_pFileIn.seekg(0, std::ios::end);
+		std::streampos	length = m_pFileIn.tellg();
+		m_pFileIn.seekg(0, std::ios::beg);
+
+		m_LoadBuffer.resize(length);
+		std::fill(m_LoadBuffer.begin(), m_LoadBuffer.end(), 0);
+
+		m_pFileIn.read(&m_LoadBuffer[0], length);
+		m_pFileIn.seekg(0, std::ios::beg);
+
+		m_LoadStream.SetBuffer(&m_LoadBuffer[0], length);
 	}
 }
 
 void HistoryController::CloseFiles()
 {
-	if( m_pFileIn.is_open() )
+	if( m_pFileIn.is_open() ) {
+		m_LoadBuffer.clear();
 		m_pFileIn.close();
+	}
 
 	if( m_pFileOut.is_open() )
 		m_pFileOut.close();
@@ -743,7 +758,6 @@ void HistoryController::operator<<(const uint32_t &data)
 void HistoryController::operator<<(const double &data)
 {
 	m_pFileOut.write((char *)&data, sizeof(double));
-
 }
 
 void HistoryController::operator<<(const std::string &data)
@@ -754,12 +768,14 @@ void HistoryController::operator<<(const std::string &data)
 
 void HistoryController::operator>>(uint32_t &data)
 {
-	m_pFileIn.read((char *)&data, sizeof(uint32_t));
+	//m_pFileIn.read((char *)&data, sizeof(uint32_t));
+	m_LoadStream.sgetn((char *)&data, sizeof(uint32_t));
 }
 
 void HistoryController::operator>>(double &data)
 {
-	m_pFileIn.read((char *)&data, sizeof(double));
+	//m_pFileIn.read((char *)&data, sizeof(double));
+	m_LoadStream.sgetn((char *)&data, sizeof(double));
 }
 
 void HistoryController::operator>>(std::string &data)
@@ -767,7 +783,8 @@ void HistoryController::operator>>(std::string &data)
 	uint32_t str_size;
 	*this >> str_size;
 	data.resize(str_size);
-	m_pFileIn.read((char *)data.c_str(), data.size());
+	//m_pFileIn.read((char *)data.c_str(), data.size());
+	m_LoadStream.sgetn((char *)data.c_str(), data.size());
 }
 
 void HistoryController::flush()
