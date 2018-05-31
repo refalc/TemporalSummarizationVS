@@ -154,7 +154,6 @@ bool TSDocumentExtractor::ConstructTimeLineCollections(const TSQuery &query, con
 			// Print top docs
 			PrintTopDocs(whole_collection, full_top_docs, doc_to_importance, init_doc_id);
 			//
-
 			collections.InitDocumentsImportanceData(std::move(doc_to_importance), std::move(top_docs));
 			if( !SeparateCollectionByTime(whole_collection, collections) )
 				return false;

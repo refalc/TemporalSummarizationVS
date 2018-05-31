@@ -2,6 +2,8 @@
 #include <windows.h>
 #include <iostream>
 #include <locale>
+#include "TSPrimitives.h"
+
 // !!copy from outside
 // todo rewrite
 namespace utils {
@@ -258,13 +260,18 @@ bool CArgReader::ReadArguments(int argc, const std::string *argv)
 					CLogger::Instance()->WriteToLog("Incorrect config");
 					return false;
 				}
-			}
-			else if( !cmd.compare("-d") ) {
+			} else if( !cmd.compare("-d") ) {
 				if( !m_sDocsSerializationPath.empty() ) {
 					CLogger::Instance()->WriteToLog("Incorrect command arguments");
 					return false;
 				}
 				m_sDocsSerializationPath = data;
+			} else if( !cmd.compare("-t") ) {
+				if( !m_sTopicModelingPath.empty() ) {
+					CLogger::Instance()->WriteToLog("Incorrect command arguments");
+					return false;
+				}
+				m_sTopicModelingPath = data;
 			} else {
 				CLogger::Instance()->WriteToLog("Incorrect command arguments");
 				return false;
@@ -435,6 +442,8 @@ bool CArgReader::ReadConfig(std::string path_to_config)
 		return false;
 	if( !GetDataFromTag(content, "DITopKValue", cur_params.m_DITopKValue) )
 		return false;
+	if( !GetDataFromTag(content, "IsTopicModeling", cur_params.m_IsTopicModeling) )
+		return false;
 
 	m_Params = cur_params;
 	return true;
@@ -464,6 +473,15 @@ bool CArgReader::GetDocsSerializationPath(std::string &docs_serialization_path) 
 		return false;
 
 	docs_serialization_path = m_sDocsSerializationPath;
+	return true;
+}
+
+bool CArgReader::GetTopicModelingPath(std::string &topic_modeling_path) const
+{
+	if( m_sTopicModelingPath.empty() )
+		return false;
+
+	topic_modeling_path = m_sTopicModelingPath;
 	return true;
 }
 
@@ -847,6 +865,70 @@ bool Word2Vec::Load(const std::string &path)
 }
 //--------------------W2V------------------------
 
+//--------------------TopicModel------------------------
+TopicModel::TopicModel(float threshold) :
+	m_fLoadThreshold(threshold)
+{
+}
+
+bool TopicModel::Load(const std::string &path)
+{
+	std::cout << "Load topic model\n";
+
+	m_Model.clear();
+	std::fstream pfile;
+	pfile.open(path, std::ios::in | std::ios::binary);
+
+	if( !pfile.is_open() )
+		return false;
+
+	int32_t row_size;
+	pfile.read(reinterpret_cast<char *>(&row_size), sizeof(row_size));
+	int j = 0, last_j = 0;
+	auto last_time = std::chrono::high_resolution_clock::now();
+	size_t row_lengh = row_size * sizeof(double) + sizeof(int32_t);
+	std::vector<char> buffer(row_lengh);
+	while( !pfile.eof() ) {
+		pfile.read(buffer.data(), row_lengh);
+		if( j % 50000 == 0 ) {
+			auto curr_time = std::chrono::high_resolution_clock::now();
+			double duration = (double)std::chrono::duration_cast<std::chrono::microseconds>(curr_time - last_time).count() / 1e6;
+			std::cout << '\r' << j << ' ' << (j - last_j) / duration << "d/s" << '\t';
+			last_j = j;
+			last_time = curr_time;
+		}
+		int32_t doc_index;
+		memcpy(&doc_index, buffer.data(), sizeof(doc_index));
+		m_Model[doc_index] = std::map<int, float>();
+		for( int i = 0; i < row_size; i++ ) {
+			double d_val;
+			memcpy(&d_val, buffer.data() + sizeof(int32_t) + i * sizeof(double), sizeof(d_val));
+			if( d_val < m_fLoadThreshold )
+				continue;
+
+			m_Model[doc_index].emplace(i, (float)d_val);
+		}
+
+		memset(buffer.data(), 0, row_lengh);
+		j++;
+	}
+
+	return true;
+}
+bool TopicModel::GetDataForDoc(int index, std::vector<TSIndexItem> &data) const
+{
+	auto iter = m_Model.find(index);
+	if( iter == m_Model.end() )
+		return false;
+
+	data.reserve(iter->second.size());
+	for( const auto elem : iter->second ) {
+		std::string topic_id = "topic_" + std::to_string(elem.first);
+		data.emplace_back(topic_id, elem.second);
+	}
+	return true;
+}
+//--------------------TopicModel------------------------
 
 CPostPrinter::CPostFile::CPostFile(const std::string &file_name, PostFileType type) :
 	m_sFileName(file_name),

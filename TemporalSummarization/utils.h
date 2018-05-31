@@ -76,6 +76,7 @@ struct Params
 	double m_DIClusterizationSimThreshold;
 	double m_DIMaxHourDiff;
 	int m_DITopKValue;
+	bool m_IsTopicModeling;
 };
 
 #define CRIT_SECTION_NAME(type) type##_instance
@@ -143,6 +144,7 @@ public:
 	bool GetAnswerPath(std::string &answer) const;
 	bool GetW2VPath(std::string &w2v_path) const;
 	bool GetDocsSerializationPath(std::string &docs_serialization_path) const;
+	bool GetTopicModelingPath(std::string &docs_serialization_path) const;
 	bool GetQueries(std::vector<std::string> &queries) const;
 	bool GetParams(Params &params) const;
 
@@ -158,6 +160,7 @@ private:
 	std::string m_sW2VPath;
 	std::string m_sConfigPath;
 	std::string m_sDocsSerializationPath;
+	std::string m_sTopicModelingPath;
 	std::vector<std::string> m_vQueries;
 	Params m_Params;
 };
@@ -259,6 +262,17 @@ public:
 	inline const W2VModelType& GetModel() const { return m_Model; }
 private:
 	W2VModelType m_Model;
+};
+
+class TopicModel
+{
+public:
+	TopicModel(float threshold = 0.02f);
+	bool Load(const std::string &path);
+	bool GetDataForDoc(int index, std::vector<class TSIndexItem> &data) const;
+private:
+	float m_fLoadThreshold;
+	std::map<int, std::map<int, float>> m_Model;
 };
 
 // for access to container in priority_queue

@@ -38,6 +38,12 @@ ReturnCode TSDataExtractor::InitParameters(const std::initializer_list<float> &p
 	return ReturnCode::TS_NO_ERROR;
 }
 
+ReturnCode TSDataExtractor::InitTopicModel(TopicModel *ptm)
+{
+	m_pTopicModel = ptm;
+	return ReturnCode::TS_NO_ERROR;;
+}
+
 ReturnCode TSDataExtractor::GetDocument(const std::string &doc_id, TSDocumentPtr document) const
 {
 	auto probe = CProfiler::CProfilerProbe("get_doc");
@@ -57,16 +63,62 @@ ReturnCode TSDataExtractor::GetDocument(const std::string &doc_id, TSDocumentPtr
 			} 
 		}
 	} 
-
-	if( load_result == ReturnCode::TS_NO_ERROR || load_result == ReturnCode::TS_DOC_SKIPPED )
-		return load_result;
-
-	if( load_result == ReturnCode::TS_GENERAL_ERROR ) {
+	
+	ReturnCode ret_res;
+	bool is_topic_modeling = m_pTopicModel != nullptr;
+	//__debugbreak();
+	if( load_result == ReturnCode::TS_NO_ERROR || load_result == ReturnCode::TS_DOC_SKIPPED ) {
+		ret_res = load_result;
+	} else if( load_result == ReturnCode::TS_GENERAL_ERROR ) {
 		if( recv_result == ReturnCode::TS_NO_ERROR )
 			m_DataHistory.SaveDocument(doc_id, document);
 
-		return recv_result;
+		ret_res = recv_result;
 	}
+	if( doc_id == "11086390" || doc_id == "11086396" || doc_id == "11086397" || doc_id == "11087140") {
+		std::cout << "found\n";
+	}
+	//document->m_DocID == "11086390" || document->m_DocID == "11086396" || document->m_DocID == "11086397"
+	if( is_topic_modeling && ret_res == ReturnCode::TS_NO_ERROR ) {
+		auto temporal_id_mapping = [] (TSDocumentPtr document) {
+			std::string id, file;
+			if( !document->GetMetaData(SMetaDataType::ID, id) || !document->GetMetaData(SMetaDataType::FILE, file) )
+				return -1;
+			std::regex re_file("KRMN_(.*?)-(.*?)-R(.*?)");
+			std::smatch content_match;
+			if( !std::regex_search(file, content_match, re_file) )
+				return -1;
+			std::string date = content_match[1],
+				sub_id = content_match[2];
+			
+			int mod = std::pow(2, 31) - 1;
+			int idate = std::stoi(date.substr(0, 4));
+			int isubid = std::stoi(sub_id);
+			std::string sfullid = std::to_string(idate + isubid) + id;
+			std::string sfullid10 = sfullid.size() > 10 ? sfullid.substr(sfullid.size() - 10, 10) : sfullid;
+			long long llfullid = std::stoll(sfullid10);
+			int magic_id = llfullid % mod;
+		
+			return magic_id;
+		};
+
+		int doc_ptm_id = temporal_id_mapping(document);
+		std::vector<TSIndexItem> ptm_data;
+		if( !m_pTopicModel->GetDataForDoc(doc_ptm_id, ptm_data) )
+			__debugbreak();
+		else {
+			for( int i = 0; i < ptm_data.size(); i++ )
+				document->AddIndexItemToIndex(SDataType::TOPIC_MODEL, std::move(ptm_data[i]));
+
+			TSIndexPtr p_index;
+			if( document->GetIndex(SDataType::TOPIC_MODEL, p_index) ) {
+				std::sort(p_index->begin(), p_index->end());
+			}
+			else
+				__debugbreak();
+		}
+	}
+	return ret_res;
 }
 
 ReturnCode TSDataExtractor::RecvDocument(const std::string &doc_id, TSDocumentPtr document) const

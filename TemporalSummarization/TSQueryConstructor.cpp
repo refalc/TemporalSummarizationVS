@@ -69,6 +69,14 @@ bool TSQueryConstructor::ConstructQueryFromDoc(const TSDocumentPtr doc, TSQuery 
 
 	CopyFromIndexFirstNItems(*doc_index_ptr, m_iTermsFor1L, *query_index_ptr);
 
+	
+	if( doc->GetIndex(SDataType::TOPIC_MODEL, doc_index_ptr) ) {
+		query.InitIndex(SDataType::TOPIC_MODEL);
+		if( !query.GetIndex(SDataType::TOPIC_MODEL, query_index_ptr) )
+			return false;
+
+		CopyFromIndexFirstNItems(*doc_index_ptr, doc_index_ptr->size(), *query_index_ptr);
+	}
 	return true;
 }
 
@@ -111,6 +119,15 @@ bool TSQueryConstructor::QueryExtensionProcess(const TSQuery &query, TSQuery &ex
 		if( !ProcessCollection(collection, SDataType::TERMIN, m_iTopTerminsForQEProcess, m_iResultTerminsSize, extended_query) )
 			return false;
 
+	TSIndexConstPtr query_index_ptr;
+	if( query.GetIndex(SDataType::TOPIC_MODEL, query_index_ptr) ) {
+		extended_query.InitIndex(SDataType::TOPIC_MODEL);
+		TSIndexPtr ex_query_index_ptr;
+		if( !extended_query.GetIndex(SDataType::TOPIC_MODEL, ex_query_index_ptr) )
+			return false;
+
+		CopyFromIndexFirstNItems(*query_index_ptr, query_index_ptr->size(), *ex_query_index_ptr);
+	}
 	return true;
 }
 

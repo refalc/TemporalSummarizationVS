@@ -383,10 +383,13 @@ bool CNldxSearchEngine::CNldxReplyProcessor::ExtractMetaData(TSDocumentPtr docum
 			document->AddMetaData(type, std::move(mdata));
 		}
 	};
+	//__debugbreak();
 	ExtractAndAddMeta(document, "KRMN_DATE", SMetaDataType::DATE, doc_text);
-	ExtractAndAddMeta(document, "KRMN_LENGTH", SMetaDataType::TITLE, doc_text);
+	//ExtractAndAddMeta(document, "KRMN_LENGTH", SMetaDataType::TITLE, doc_text);
 	ExtractAndAddMeta(document, "KRMN_SITE", SMetaDataType::SITE, doc_text);
 	ExtractAndAddMeta(document, "KRMN_TITLE", SMetaDataType::TITLE, doc_text);
+	ExtractAndAddMeta(document, "KRMN_ID", SMetaDataType::ID, doc_text);
+	ExtractAndAddMeta(document, "KRMN_FILE", SMetaDataType::FILE, doc_text);
 
 	return true;
 }

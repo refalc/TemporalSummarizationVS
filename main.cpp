@@ -14,6 +14,7 @@ int main(int argc, char *argv[])
 	auto probe = CProfiler::CProfilerProbe("all");
 	CArgReader arg_reader;
 	bool allow_test_args = true;
+	//__debugbreak();
 	if( !arg_reader.ReadArguments(argc, argv) ) {
 		if( !allow_test_args )
 			return -1;
@@ -32,18 +33,18 @@ int main(int argc, char *argv[])
 
 	TSController controller;
 	Params input_params;
-	std::string input_answer_path, input_w2v_path, docs_serialization_path;
+	std::string input_answer_path, input_w2v_path, docs_serialization_path, topic_modeling_path;
 	std::vector<std::string> input_queries;
 
 	int summary_size = 15;
 	if( !arg_reader.GetParams(input_params) || !arg_reader.GetAnswerPath(input_answer_path) ||
 		!arg_reader.GetW2VPath(input_w2v_path) || !arg_reader.GetQueries(input_queries) ||
-		!arg_reader.GetDocsSerializationPath(docs_serialization_path) ) {
+		!arg_reader.GetDocsSerializationPath(docs_serialization_path) || !arg_reader.GetTopicModelingPath(topic_modeling_path)) {
 		CLogger::Instance()->WriteToLog("ERROR : while getting parameters from arg reader");
 		return -1;
 	}
 
-	if( !controller.InitParameters(input_params, input_answer_path, docs_serialization_path, input_w2v_path, summary_size) ) {
+	if( !controller.InitParameters(input_params, input_answer_path, docs_serialization_path, summary_size, input_w2v_path, topic_modeling_path) ) {
 		CLogger::Instance()->WriteToLog("ERROR : while init parameters");
 		return -1;
 	}

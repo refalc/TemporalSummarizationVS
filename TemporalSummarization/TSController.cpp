@@ -19,7 +19,8 @@ TSController::TSController() :
 TSController::~TSController()
 {}
 
-bool TSController::InitParameters(const Params &params, const std::string &answer_path, const std::string &docs_serialization_path, const std::string &w2v_path, int summary_size)
+
+bool TSController::InitParameters(const Params &params, const std::string &answer_path, const std::string &docs_serialization_path, int summary_size, const std::string &w2v_path, const std::string &topic_model_path)
 {
 	if( m_spDataExtractor->InitDocsSerializationPath(docs_serialization_path) != ReturnCode::TS_NO_ERROR )
 		return false;
@@ -38,8 +39,8 @@ bool TSController::InitParameters(const Params &params, const std::string &answe
 	m_W2VPath = w2v_path;
 	m_iTemporalSummarySize = summary_size;
 
-	m_spModel.reset(new Word2Vec);
 	if( m_Params.m_DIW2VEnable || m_Params.m_SlvW2VEnable ) {
+		m_spModel.reset(new Word2Vec);
 		if( !m_spModel->Load(m_W2VPath) )
 			return false;
 
@@ -48,6 +49,14 @@ bool TSController::InitParameters(const Params &params, const std::string &answe
 
 		if( !m_spSolver->InitW2VModel(m_spModel.get()) )
 			return false;
+	}
+
+	//__debugbreak();
+	if( m_Params.m_IsTopicModeling ) {
+		m_spTopicModel.reset(new TopicModel);
+		if( !m_spTopicModel->Load(topic_model_path) )
+			return false;
+		m_spDataExtractor->InitTopicModel(m_spTopicModel.get());
 	}
 	/*
 	m_iLemmsFor1L

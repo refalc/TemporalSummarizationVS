@@ -42,6 +42,7 @@ public:
 	ReturnCode InitDocsSerializationPath(const std::string &docs_serialization_path);
 	ReturnCode GetDocument(const std::string &doc_id, TSDocumentPtr document) const;
 	ReturnCode GetDocuments(const TSQuery &query, const std::initializer_list<float> &params, TSDocCollection &collection) const;
+	ReturnCode InitTopicModel(TopicModel *ptm);
 
 private:
 	bool GetDocumentList(const TSQuery &query, const std::initializer_list<float> &params, std::vector<std::string> &doc_list) const;
@@ -52,6 +53,7 @@ private:
 	std::unique_ptr<class ISearchEngine> m_spSearchEngine;
 	class IReplyProcessor *m_pReplyProcessor;
 	int m_iMaxDocSize;
+	TopicModel * m_pTopicModel;
 	mutable TSDataCollection m_DataHistory;
 };
 

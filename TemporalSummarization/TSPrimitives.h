@@ -19,6 +19,7 @@ enum class SDataType
 	WORD = 1,
 	TERMIN = 2,
 	SENT = 3,
+	TOPIC_MODEL = 4,
 	FINAL_TYPE
 };
 
@@ -34,6 +35,8 @@ enum class SMetaDataType
 	INT_DATE = 1,
 	SITE = 2,
 	TITLE = 3,
+	ID = 4,
+	FILE = 5,
 };
 
 // predefs
@@ -73,7 +76,8 @@ public:
 	operator int() { return m_ID; };
 	operator std::string() const {
 		std::string temp_str;
-		CIndex::Instance()->GetStr(m_ID, temp_str);
+		if( !CIndex::Instance()->GetStr(m_ID, temp_str) )
+			temp_str = std::to_string(m_ID);
 		return temp_str;
 	}
 	inline const TSIndexItemID &operator=(const TSIndexItemID &other) noexcept { m_ID = other.m_ID; return *this; }
@@ -94,13 +98,13 @@ class TSIndexItem
 {
 public:
 	TSIndexItem() {}
-	TSIndexItem(const TSIndexItemID &id, float w, const std::vector<int> &pos_data) noexcept :
+	TSIndexItem(const TSIndexItemID &id, float w, const std::vector<int> &pos_data = {}) noexcept :
 		m_ID(id),
 		m_fWeight(w),
 		m_Positions(pos_data)
 	{}
 
-	TSIndexItem(TSIndexItemID &&id, float w, std::vector<int> &&pos_data) noexcept :
+	TSIndexItem(TSIndexItemID &&id, float w, std::vector<int> &&pos_data = {}) noexcept :
 		m_ID(std::move(id)),
 		m_fWeight(w),
 		m_Positions(std::move(pos_data))
@@ -133,7 +137,7 @@ class TSIndex
 {
 public:
 	TSIndex();
-	TSIndex(SDataType type) noexcept;
+	TSIndex(SDataType type, bool is_serializable = true) noexcept;
 	TSIndex(const TSIndex &other);
 	TSIndex(TSIndex &&other) noexcept;
 
@@ -174,10 +178,11 @@ public:
 	float operator*(const TSIndex &other) const;
 	void SaveToHistoryController(HistoryController &history) const;
 	void LoadFromHistoryController(HistoryController &history);
-
+	inline bool IsSerializable() const { return m_bIsSerializable; }
 private:
 	SDataType m_eIndexType;
 	std::vector<TSIndexItem> m_Index;
+	bool m_bIsSerializable;
 	mutable std::array<float, W2V_VECTOR_SIZE> m_IndexEmbedding;
 	mutable float m_fIndexEmbeddingLen;
 };
@@ -205,7 +210,10 @@ public:
 		});
 
 		if( index_iter == m_Indexies.end() ) {
-			m_Indexies.emplace_back(type);
+			bool serialize_index = true;
+			if( type == SDataType::TOPIC_MODEL )
+				serialize_index = false;
+			m_Indexies.emplace_back(type, serialize_index);
 			index_iter = m_Indexies.begin() + m_Indexies.size() - 1;
 		}
 
@@ -327,6 +335,7 @@ private:
 
 private:
 	std::string m_DocID;
+	std::vector<float> m_DocTopicalVector;
 	std::vector<TSSentence> m_Sentences;
 	TSMetaData m_MetaData;
 };

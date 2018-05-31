@@ -14,7 +14,7 @@ class TSController
 public:
 	TSController();
 	~TSController();
-	bool InitParameters(const Params &params, const std::string &answer_path, const std::string &docs_serialization_path, const std::string &w2v_path, int summary_size);
+	bool InitParameters(const Params &params, const std::string &answer_path, const std::string &docs_serialization_path, int summary_size, const std::string &w2v_path = "", const std::string &topic_model_path = "");
 	bool RunQueries(const std::vector<std::string> &queries) const;
 
 private:
@@ -38,4 +38,5 @@ private:
 	int m_iTemporalSummarySize;
 	mutable int m_iStoryIDCounter;
 	std::unique_ptr<Word2Vec> m_spModel;
+	std::unique_ptr<TopicModel> m_spTopicModel;
 };

@@ -68,15 +68,19 @@ void TSIndexItem::LoadFromHistoryController(HistoryController &history)
 
 	m_ID.LoadFromHistoryController(history);
 }
-TSIndex::TSIndex()
+TSIndex::TSIndex() :
+	m_eIndexType(SDataType::FINAL_TYPE),
+	m_fIndexEmbeddingLen(0.f),
+	m_bIsSerializable(true)
 {
 	m_fIndexEmbeddingLen = 0.f;
 	std::fill(m_IndexEmbedding.begin(), m_IndexEmbedding.end(), 0.f);
 }
 
-TSIndex::TSIndex(SDataType type) noexcept :
-m_eIndexType(type),
-m_fIndexEmbeddingLen(0.f)
+TSIndex::TSIndex(SDataType type, bool is_serializable) noexcept :
+	m_eIndexType(type),
+	m_fIndexEmbeddingLen(0.f),
+	m_bIsSerializable(is_serializable)
 {
 	std::fill(m_IndexEmbedding.begin(), m_IndexEmbedding.end(), 0.f);
 }
@@ -97,6 +101,7 @@ const TSIndex &TSIndex::operator=(const TSIndex &other)
 	m_Index = other.m_Index;
 	m_IndexEmbedding = other.m_IndexEmbedding;
 	m_fIndexEmbeddingLen = other.m_fIndexEmbeddingLen;
+	m_bIsSerializable = other.m_bIsSerializable;
 	return *this;
 }
 
@@ -106,6 +111,7 @@ const TSIndex &TSIndex::operator=(TSIndex &&other) noexcept
 	m_Index = std::move(other.m_Index);
 	m_IndexEmbedding = std::move(other.m_IndexEmbedding);
 	m_fIndexEmbeddingLen = other.m_fIndexEmbeddingLen;
+	m_bIsSerializable = other.m_bIsSerializable;
 
 	return *this;
 }
@@ -120,6 +126,7 @@ void TSIndex::SaveToHistoryController(HistoryController &history) const
 
 void TSIndex::LoadFromHistoryController(HistoryController &history)
 {
+	m_bIsSerializable = true;
 	uint32_t index_type;
 	history >> index_type;
 	m_eIndexType = (SDataType)index_type;
@@ -260,7 +267,8 @@ void TSIndexiesHolder::SaveToHistoryController(HistoryController &history) const
 {
 	history << (uint32_t)m_Indexies.size();
 	for( const auto elem : m_Indexies )
-		elem.SaveToHistoryController(history);
+		if( elem.IsSerializable() )
+			elem.SaveToHistoryController(history);
 }
 
 void TSIndexiesHolder::LoadFromHistoryController(HistoryController &history)

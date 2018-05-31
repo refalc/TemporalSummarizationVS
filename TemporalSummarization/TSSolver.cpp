@@ -213,8 +213,10 @@ float TSSolver::RankOneSentence(const TSSolverSentenceData &sentence, const TSQu
 	if( sim_to_other > m_fSimThreshold )
 		return 0.f;
 
+	float topic_sim = sentence_ptr->GetDocPtr()->Similarity(query, SDataType::TOPIC_MODEL);
+	float topic_sim_weight = m_fLambda;
 	float sentence_num_penality = 1.f - 0.5f * sin((float)sentence_ptr->GetSentenseNumber() / sentence_ptr->GetDocPtr()->sentences_size());
-	score = sentence_num_penality * m_fLambda * sim_to_query - (1.f - m_fLambda) * sim_to_other;
+	score = sentence_num_penality * m_fLambda * sim_to_query - (1.f - m_fLambda) * sim_to_other + topic_sim_weight * topic_sim;
 
 	return score;
 }
